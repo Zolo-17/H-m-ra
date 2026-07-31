@@ -89,22 +89,13 @@ const MODULES = [
     prompt: `Module: SÉCURITÉ SOCIALE. Présente-toi comme recruteur. Pose la première question sur les obligations sociales d'un employeur au Gabon.`,
   },
   {
-    id: "lgr",
-    label: "Chef Comptable — LGR/FGIS",
-    icon: "🏨",
-    desc: "Spécifique hôtellerie multi-sites, reporting FGIS, structuration",
-    questions: 10,
-    color: "#4A7B6B",
-    prompt: `Module: SPÉCIFIQUE CHEF COMPTABLE LGR/FGIS. Le recruteur s'appelle Monsieur Koumba, DRH du FGIS. LGR (Luxury Green Resorts) est une filiale du FGIS en phase de structuration opérant sur 3 sites: Pongara Lodge, Loango Camps, Hôtel de la Sablière. Certifiée EDGE. Les comptes remontent au FGIS, soumis à la Cour des comptes et aux auditions parlementaires. Pose la première question: "Comment organiseriez-vous la fonction comptable chez Luxury Green Resorts à votre arrivée?"`,
-  },
-  {
     id: "complet",
     label: "Simulation Complète",
     icon: "🎯",
-    desc: "Les 71 questions — simulation d'entretien complet de A à Z",
-    questions: 71,
+    desc: "Simulation d'entretien complet de A à Z — personnalité, management, technique, OHADA, fiscalité, social",
+    questions: 40,
     color: T.or,
-    prompt: `Module: SIMULATION COMPLÈTE 71 QUESTIONS. Tu joues Monsieur Koumba, DRH du FGIS, recrutant un Chef Comptable pour Luxury Green Resorts (LGR), filiale hôtelière en phase de structuration. Sites: Pongara Lodge, Loango Camps, Hôtel de la Sablière. LGR certifiée EDGE, comptes contrôlés par la Cour des comptes et soumis aux auditions parlementaires. Présente-toi et commence par la Section 1 - Personnalité, Question 1: "Présentez-vous."`,
+    prompt: `Module: SIMULATION COMPLÈTE. Présente-toi comme recruteur d'une entreprise gabonaise recrutant un Chef Comptable, sans préciser de nom d'entreprise fictive. Mène un entretien complet couvrant successivement : présentation et motivation, management d'équipe, technique comptable (SYSCOHADA révisé), réglementation OHADA, fiscalité gabonaise (TVA, TPS, IS), et sécurité sociale (CNSS, CNAMGS). Présente-toi et commence par la Section 1 - Personnalité, Question 1: "Présentez-vous."`,
   },
 ];
 
@@ -302,8 +293,8 @@ function Landing({ onStart }) {
           marginBottom: 56,
         }}>
           {[
-            { n: "71", l: "Questions" },
-            { n: "8", l: "Modules" },
+            { n: "7", l: "Modules" },
+            { n: "OHADA", l: "Révisé" },
             { n: "5⭐", l: "Standard exigé" },
           ].map(s => (
             <div key={s.l} style={{ textAlign: "center" }}>
