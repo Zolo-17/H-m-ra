@@ -108,6 +108,22 @@ const MODULES = [
   },
 ];
 
+// ── Options de chronomètre ─────────────────────────────────────────────────
+const TIMER_OPTIONS = [
+  { label: "Sans chronomètre", value: null },
+  { label: "1 min / question", value: 1 },
+  { label: "2 min / question", value: 2 },
+  { label: "3 min / question", value: 3 },
+  { label: "5 min / question", value: 5 },
+];
+
+function formatTime(s) {
+  if (s === null || s === undefined) return "";
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
 // ── API call ───────────────────────────────────────────────────────────────
 // On ne parle JAMAIS directement à l'API Anthropic depuis le navigateur
 // (la clé secrète serait exposée à tous les visiteurs). On passe par notre
@@ -509,22 +525,51 @@ function Simulator({ module, onBack }) {
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
   const [score, setScore] = useState({ total: 0, count: 0 });
+  const [poste, setPoste] = useState("");
+  const [secteur, setSecteur] = useState("");
+  const [timerMinutes, setTimerMinutes] = useState(null); // null = pas de chronomètre
+  const [timeLeft, setTimeLeft] = useState(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const initialPromptRef = useRef("");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Relance le compte à rebours à chaque nouvelle question du recruteur
+  useEffect(() => {
+    if (!started || !timerMinutes) return;
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") {
+      setTimeLeft(timerMinutes * 60);
+    }
+  }, [messages, started, timerMinutes]);
+
+  // Fait décompter le chronomètre seconde par seconde
+  useEffect(() => {
+    if (!started || !timerMinutes) return;
+    const id = setInterval(() => {
+      setTimeLeft(t => (t !== null && t > 0 ? t - 1 : t));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [started, timerMinutes]);
+
   const start = async () => {
     setStarted(true);
     setLoading(true);
-    const init = [{ role: "user", content: module.prompt }];
+    const contextLine = (secteur.trim() || poste.trim())
+      ? `Contexte du candidat : il/elle postule pour le poste de "${poste.trim() || "non précisé"}" dans le secteur "${secteur.trim() || "non précisé"}". Adapte tes questions à ce contexte précis, en plus du thème du module choisi.\n\n`
+      : "";
+    const fullPrompt = contextLine + module.prompt;
+    initialPromptRef.current = fullPrompt;
+    const init = [{ role: "user", content: fullPrompt }];
     const reply = await callClaude(init);
     setMessages([
-      { role: "user", content: module.prompt },
+      { role: "user", content: fullPrompt },
       { role: "assistant", content: reply },
     ]);
+    if (timerMinutes) setTimeLeft(timerMinutes * 60);
     setLoading(false);
   };
 
@@ -634,6 +679,66 @@ function Simulator({ module, onBack }) {
             ))}
           </div>
 
+          <div style={{ marginBottom: 28, textAlign: "left" }}>
+            <label style={{
+              fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+              textTransform: "uppercase", display: "block", marginBottom: 6,
+            }}>Poste visé (optionnel)</label>
+            <input
+              type="text"
+              value={poste}
+              onChange={e => setPoste(e.target.value)}
+              placeholder="Ex : Chef Comptable"
+              style={{
+                width: "100%", padding: "10px 12px", marginBottom: 16,
+                background: T.graphite, border: `1px solid #2A2A2A`,
+                borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
+                outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+              }}
+            />
+
+            <label style={{
+              fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+              textTransform: "uppercase", display: "block", marginBottom: 6,
+            }}>Secteur d'activité (optionnel)</label>
+            <input
+              type="text"
+              value={secteur}
+              onChange={e => setSecteur(e.target.value)}
+              placeholder="Ex : Hôtellerie, BTP, Banque..."
+              style={{
+                width: "100%", padding: "10px 12px", marginBottom: 20,
+                background: T.graphite, border: `1px solid #2A2A2A`,
+                borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
+                outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+              }}
+            />
+
+            <label style={{
+              fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+              textTransform: "uppercase", display: "block", marginBottom: 8,
+            }}>Chronomètre par question</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {TIMER_OPTIONS.map(opt => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setTimerMinutes(opt.value)}
+                  style={{
+                    padding: "8px 14px",
+                    background: timerMinutes === opt.value ? T.or : "none",
+                    border: `1px solid ${timerMinutes === opt.value ? T.or : "#2A2A2A"}`,
+                    borderRadius: 20,
+                    color: timerMinutes === opt.value ? T.noir : T.gris,
+                    fontSize: "0.7rem", cursor: "pointer",
+                    fontWeight: timerMinutes === opt.value ? 700 : 400,
+                    transition: "all 0.15s",
+                  }}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: "flex", gap: 12 }}>
             <button onClick={onBack} style={{
               flex: 1, padding: "12px",
@@ -685,6 +790,19 @@ function Simulator({ module, onBack }) {
         <div style={{
           display: "flex", gap: 20, alignItems: "center",
         }}>
+          {timerMinutes && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                fontSize: "0.6rem", color: T.gris,
+                letterSpacing: 1, textTransform: "uppercase",
+              }}>Temps</div>
+              <div style={{
+                fontFamily: "Georgia, serif",
+                fontSize: "1.1rem", fontWeight: 700,
+                color: (timeLeft !== null && timeLeft <= 10) ? "#D9534F" : T.or,
+              }}>{formatTime(timeLeft)}</div>
+            </div>
+          )}
           <div style={{ textAlign: "center" }}>
             <div style={{
               fontSize: "0.6rem", color: T.gris,
@@ -713,7 +831,7 @@ function Simulator({ module, onBack }) {
         display: "flex", flexDirection: "column",
       }}>
         {messages
-          .filter(m => !(m.role === "user" && m.content === module.prompt))
+          .filter(m => !(m.role === "user" && m.content === initialPromptRef.current))
           .map((msg, i) => <Bubble key={i} msg={msg} />)}
 
         {loading && (
