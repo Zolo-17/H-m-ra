@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const T = {
-  noir:    "#0A0A0A",
+  bleu nuit:    "#0A0A0A",
   charbon: "#141414",
   graphite:"#1E1E1E",
   or:      "#C9A84C",
