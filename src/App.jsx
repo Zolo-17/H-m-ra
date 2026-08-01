@@ -334,6 +334,18 @@ function Landing({ onStart }) {
           Commencer la simulation →
         </button>
 
+        <div style={{ marginTop: 18 }}>
+          <a
+            href="/paiement"
+            style={{
+              color: T.gris, fontSize: "0.78rem",
+              textDecoration: "underline", cursor: "pointer",
+            }}
+          >
+            Débloquer l'accès complet — Mobile Money
+          </a>
+        </div>
+
         <div style={{
           width: 1, height: 60,
           background: `linear-gradient(to bottom, ${T.or}, transparent)`,
