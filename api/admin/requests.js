@@ -1,3 +1,10 @@
+// api/admin/requests.js
+//
+// Endpoint protégé par un mot de passe (ADMIN_SECRET) que TOI seul connais.
+// GET  → liste toutes les demandes de paiement
+// POST → approuve ou rejette une demande. En cas d'approbation, crée
+//        automatiquement l'utilisateur, le paiement et l'accès dans Supabase.
+
 import { createClient } from "@supabase/supabase-js";
 
 function supabaseAdmin() {
