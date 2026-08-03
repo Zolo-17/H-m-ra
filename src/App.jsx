@@ -522,7 +522,7 @@ function ModuleSelect({ onSelect, onBack }) {
 }
 
 // ── Simulator ──────────────────────────────────────────────────────────────
-function Simulator({ module, onBack }) {
+function Simulator({ module, candidate, onBack }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -532,6 +532,7 @@ function Simulator({ module, onBack }) {
   const [secteur, setSecteur] = useState("");
   const [timerMinutes, setTimerMinutes] = useState(null); // null = pas de chronomètre
   const [timeLeft, setTimeLeft] = useState(null);
+  const [blocked, setBlocked] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const initialPromptRef = useRef("");
@@ -558,9 +559,36 @@ function Simulator({ module, onBack }) {
     return () => clearInterval(id);
   }, [started, timerMinutes]);
 
+  // Vérifie l'accès payant actif, sinon consomme un crédit d'essai gratuit.
+  // Renvoie true si le candidat peut continuer, false s'il doit payer.
+  async function checkAccess() {
+    if (!candidate?.phone) return true;
+    try {
+      const res = await fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`);
+      const data = await res.json();
+      if (data.hasActiveAccess) return true;
+
+      const trialRes = await fetch("/api/trial/increment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: candidate.phone }),
+      });
+      const trialData = await trialRes.json();
+      return !!trialData.allowed;
+    } catch {
+      return true; // ne bloque pas le candidat en cas de souci réseau
+    }
+  }
+
   const start = async () => {
-    setStarted(true);
     setLoading(true);
+    const allowed = await checkAccess();
+    if (!allowed) {
+      setLoading(false);
+      setBlocked(true);
+      return;
+    }
+    setStarted(true);
     const contextLine = (secteur.trim() || poste.trim())
       ? `Contexte du candidat : il/elle postule pour le poste de "${poste.trim() || "non précisé"}" dans le secteur "${secteur.trim() || "non précisé"}". Adapte tes questions à ce contexte précis, en plus du thème du module choisi.\n\n`
       : "";
@@ -578,11 +606,17 @@ function Simulator({ module, onBack }) {
 
   const send = async () => {
     if (!input.trim() || loading) return;
+    setLoading(true);
+    const allowed = await checkAccess();
+    if (!allowed) {
+      setLoading(false);
+      setBlocked(true);
+      return;
+    }
     const userMsg = { role: "user", content: input.trim() };
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
     setInput("");
-    setLoading(true);
     const apiMsgs = newMsgs.map(m => ({ role: m.role, content: m.content }));
     const reply = await callClaude(apiMsgs);
     const starMatch = reply.match(/⭐+/);
@@ -599,6 +633,38 @@ function Simulator({ module, onBack }) {
   };
 
   const avg = score.count > 0 ? (score.total / score.count).toFixed(1) : "—";
+
+  if (blocked) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: T.noir, display: "flex",
+        alignItems: "center", justifyContent: "center", padding: 24,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+      }}>
+        <div style={{ maxWidth: 400, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ color: T.or, fontFamily: "Georgia, serif", fontSize: "1.3rem", marginBottom: 12 }}>
+            Essai gratuit terminé
+          </h2>
+          <p style={{ color: T.gris, fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 24 }}>
+            Tu as utilisé tes 2 questions d'essai gratuites. Débloque l'accès
+            complet pour continuer à t'entraîner sur tous les modules.
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button onClick={onBack} style={{
+              padding: "12px 20px", background: "none", border: "1px solid #333",
+              borderRadius: 4, color: T.gris, cursor: "pointer", fontSize: "0.85rem",
+            }}>← Retour</button>
+            <a href="/paiement" style={{
+              padding: "12px 20px", background: T.or, border: "none",
+              borderRadius: 4, color: T.noir, fontWeight: 700, cursor: "pointer",
+              fontSize: "0.85rem", textDecoration: "none",
+            }}>Débloquer l'accès →</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!started) {
     return (
@@ -942,19 +1008,142 @@ function Simulator({ module, onBack }) {
 }
 
 // ── App ────────────────────────────────────────────────────────────────────
+// ── Inscription du candidat ─────────────────────────────────────────────────
+function Register({ onRegistered, onBack }) {
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const cleanPhone = phone.trim().replace(/\s+/g, "");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError("Adresse email invalide.");
+      return;
+    }
+    if (cleanPhone.length < 8) {
+      setError("Numéro de téléphone invalide.");
+      return;
+    }
+    setError("");
+    onRegistered({ email: email.trim(), phone: cleanPhone });
+  }
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: T.noir, display: "flex",
+      alignItems: "center", justifyContent: "center", padding: "24px",
+    }}>
+      <div style={{ maxWidth: 400, width: "100%" }}>
+        <div style={{ fontSize: 40, textAlign: "center", marginBottom: 16 }}>🔑</div>
+        <h1 style={{
+          color: T.or, fontFamily: "Georgia, serif", fontSize: "1.4rem",
+          textAlign: "center", marginBottom: 8,
+        }}>
+          Avant de commencer
+        </h1>
+        <p style={{ color: T.gris, fontSize: "0.85rem", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>
+          Renseigne ton email et ton numéro pour créer ton profil candidat.
+          Tu bénéficies de 2 questions d'essai gratuites, tous modules confondus.
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <label style={{
+            fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+            textTransform: "uppercase", display: "block", marginBottom: 6,
+          }}>Adresse email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="toi@exemple.com"
+            style={{
+              width: "100%", padding: "10px 12px", marginBottom: 16,
+              background: T.graphite, border: "1px solid #2A2A2A",
+              borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
+              outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+            }}
+          />
+
+          <label style={{
+            fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+            textTransform: "uppercase", display: "block", marginBottom: 6,
+          }}>Numéro de téléphone</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            placeholder="Ex : 077037005"
+            style={{
+              width: "100%", padding: "10px 12px", marginBottom: 8,
+              background: T.graphite, border: "1px solid #2A2A2A",
+              borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
+              outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+            }}
+          />
+          <p style={{ color: "#666", fontSize: "0.7rem", marginBottom: 20 }}>
+            Utilise le même numéro que celui utilisé pour ton paiement Mobile Money.
+          </p>
+
+          {error && (
+            <p style={{ color: "#D9534F", fontSize: "0.8rem", marginBottom: 12 }}>{error}</p>
+          )}
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              type="button"
+              onClick={onBack}
+              style={{
+                padding: "12px 20px", background: "none", border: "1px solid #333",
+                borderRadius: 4, color: T.gris, cursor: "pointer", fontSize: "0.85rem",
+              }}
+            >← Retour</button>
+            <button
+              type="submit"
+              style={{
+                flex: 1, padding: "12px 20px", background: T.or, border: "none",
+                borderRadius: 4, color: T.noir, fontWeight: 700, cursor: "pointer", fontSize: "0.85rem",
+              }}
+            >Continuer →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("landing");
   const [selectedModule, setSelectedModule] = useState(null);
+  const [candidate, setCandidate] = useState(() => {
+    try {
+      const saved = localStorage.getItem("hemera_candidate");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const handleStart = (target, mod = null) => {
-    if (target === "modules") setPage("modules");
+    if (target === "modules") {
+      setPage(candidate ? "modules" : "register");
+    }
     if (target === "simulator" && mod) {
       setSelectedModule(mod);
-      setPage("simulator");
+      setPage(candidate ? "simulator" : "register");
     }
   };
 
+  const handleRegistered = (info) => {
+    localStorage.setItem("hemera_candidate", JSON.stringify(info));
+    setCandidate(info);
+    setPage(selectedModule ? "simulator" : "modules");
+  };
+
   if (page === "landing") return <Landing onStart={handleStart} />;
+  if (page === "register") return (
+    <Register onRegistered={handleRegistered} onBack={() => setPage("landing")} />
+  );
   if (page === "modules") return (
     <ModuleSelect
       onSelect={m => { setSelectedModule(m); setPage("simulator"); }}
@@ -964,8 +1153,10 @@ export default function App() {
   if (page === "simulator" && selectedModule) return (
     <Simulator
       module={selectedModule}
+      candidate={candidate}
       onBack={() => setPage("modules")}
     />
   );
   return null;
 }
+
