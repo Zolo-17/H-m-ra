@@ -3,8 +3,46 @@
 // Reçoit la déclaration de paiement d'un candidat (après qu'il ait payé
 // sur ton numéro Airtel Money ou Moov Money) et l'enregistre dans Supabase
 // en statut "pending", en attendant ta vérification manuelle.
+// Envoie aussi un email de notification (via Resend) pour que tu sois
+// prévenu sans avoir à vérifier /admin manuellement.
 
 import { createClient } from "@supabase/supabase-js";
+
+async function sendNotificationEmail({ fullName, phone, method, offerCode, transactionReference }) {
+  const to = process.env.NOTIFY_EMAIL;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!to || !apiKey) {
+    console.warn("Notification email non envoyée : NOTIFY_EMAIL ou RESEND_API_KEY manquant.");
+    return;
+  }
+
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: "Héméra <onboarding@resend.dev>",
+        to: [to],
+        subject: `Nouvelle demande de paiement — ${fullName}`,
+        text: `Un candidat vient de déclarer un paiement.
+
+Nom : ${fullName}
+Téléphone : ${phone}
+Méthode : ${method === "airtel_money" ? "Airtel Money" : "Moov Money"}
+Offre : ${offerCode}
+Référence transaction : ${transactionReference || "non renseignée"}
+
+Va sur ton site, page /admin, pour vérifier et approuver cette demande.`,
+      }),
+    });
+  } catch (err) {
+    // On ne bloque jamais l'enregistrement de la demande à cause d'un souci d'email
+    console.error("Erreur envoi email de notification:", err);
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -35,5 +73,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Erreur lors de l'enregistrement." });
   }
 
+  await sendNotificationEmail({ fullName, phone, method, offerCode, transactionReference });
+
   return res.status(200).json({ success: true });
 }
+
