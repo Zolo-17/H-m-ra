@@ -35,7 +35,7 @@ Méthode : ${method === "airtel_money" ? "Airtel Money" : "Moov Money"}
 Offre : ${offerCode}
 Référence transaction : ${transactionReference || "non renseignée"}
 
-Va sur ton site, page /admin, pour vérifier et approuver cette demande.`,
+Va sur ton site, https://h-m-ra-8vu2.vercel.app/admin , pour vérifier et approuver cette demande.`,
       }),
     });
   } catch (err) {
