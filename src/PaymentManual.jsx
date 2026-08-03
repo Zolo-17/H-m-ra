@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 const OFFERS = [
@@ -18,9 +18,24 @@ export default function PaymentManual() {
   const [method, setMethod] = useState(METHODS[0]);
   const [offerCode, setOfferCode] = useState(OFFERS[0].code);
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [reference, setReference] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | done | error
+
+  // Pré-remplit email/téléphone si le candidat s'est déjà inscrit sur le site
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("hemera_candidate");
+      if (saved) {
+        const info = JSON.parse(saved);
+        if (info.email) setEmail(info.email);
+        if (info.phone) setPhone(info.phone);
+      }
+    } catch {
+      // pas grave si rien à pré-remplir
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -31,6 +46,7 @@ export default function PaymentManual() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName,
+          email,
           phone,
           method: method.id,
           offerCode,
@@ -51,13 +67,15 @@ export default function PaymentManual() {
           <h2 style={{ color: T.or, fontFamily: "Georgia, serif" }}>Demande envoyée ✅</h2>
           <p style={{ color: T.gris, lineHeight: 1.6 }}>
             Ton accès sera activé dès que ton paiement sera vérifié —
-            généralement sous quelques heures. Tu recevras un SMS de
-            confirmation dès que c'est fait.
+            généralement sous quelques heures. Un email de confirmation
+            vient de t'être envoyé, et tu recevras un second message dès
+            que ton accès sera activé.
           </p>
         </div>
       </div>
     );
   }
+
 
   const selectedOffer = OFFERS.find(o => o.code === offerCode);
 
@@ -115,6 +133,16 @@ export default function PaymentManual() {
 
           <label style={labelStyle}>Nom complet</label>
           <input required value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
+
+          <label style={labelStyle}>Ton adresse email</label>
+          <input
+            required
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="toi@exemple.com"
+            style={inputStyle}
+          />
 
           <label style={labelStyle}>Ton numéro de téléphone</label>
           <input
