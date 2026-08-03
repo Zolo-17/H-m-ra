@@ -14,6 +14,28 @@ function supabaseAdmin() {
   );
 }
 
+async function sendEmail({ to, subject, text }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !to) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: "Héméra <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        text,
+      }),
+    });
+  } catch (err) {
+    console.error("Erreur envoi email:", err);
+  }
+}
+
 export default async function handler(req, res) {
   const adminSecret = req.headers["x-admin-secret"];
   if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
@@ -64,7 +86,7 @@ export default async function handler(req, res) {
       if (!user) {
         const { data: newUser, error: userErr } = await supabase
           .from("users")
-          .insert({ phone: request.phone, full_name: request.full_name })
+          .insert({ phone: request.phone, full_name: request.full_name, email: request.email || null })
           .select()
           .single();
         if (userErr) return res.status(500).json({ error: userErr.message });
@@ -119,6 +141,24 @@ export default async function handler(req, res) {
         .from("manual_payment_requests")
         .update({ status: "approved", approved_at: new Date().toISOString() })
         .eq("id", requestId);
+
+      // 6. Confirmer au candidat que son accès est actif
+      const candidateEmail = request.email || user.email;
+      if (candidateEmail) {
+        const expiresDate = new Date(expiresAt).toLocaleDateString("fr-FR");
+        await sendEmail({
+          to: candidateEmail,
+          subject: "Héméra — Ton accès est activé ✅",
+          text: `Bonjour ${request.full_name},
+
+Bonne nouvelle : ton paiement a été vérifié et ton accès est maintenant actif jusqu'au ${expiresDate}.
+
+Tu peux te reconnecter dès maintenant sur Héméra et commencer tes simulations d'entretien.
+
+Bonne préparation,
+L'équipe Héméra`,
+        });
+      }
 
       return res.status(200).json({ success: true });
     }
