@@ -116,6 +116,20 @@ function formatTime(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+// ── Synthèse vocale (lecture audio des questions) ───────────────────────────
+// Fonctionnalité native du navigateur, gratuite, aucun coût API.
+function speakText(text) {
+  if (!window.speechSynthesis) {
+    alert("La lecture audio n'est pas supportée par ce navigateur. Essaie avec Chrome.");
+    return;
+  }
+  window.speechSynthesis.cancel(); // stoppe une lecture en cours avant d'en lancer une nouvelle
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "fr-FR";
+  utterance.rate = 0.95;
+  window.speechSynthesis.speak(utterance);
+}
+
 // ── API call ───────────────────────────────────────────────────────────────
 // On ne parle JAMAIS directement à l'API Anthropic depuis le navigateur
 // (la clé secrète serait exposée à tous les visiteurs). On passe par notre
@@ -189,22 +203,33 @@ function Bubble({ msg }) {
           fontFamily: "Georgia, serif",
         }}>H</div>
       )}
-      <div style={{
-        maxWidth: "80%",
-        background: isUser
-          ? `linear-gradient(135deg, ${T.or}22, ${T.orFond})`
-          : T.graphite,
-        border: isUser
-          ? `1px solid ${T.or}44`
-          : `1px solid #2A2A2A`,
-        borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-        padding: "12px 16px",
-        color: T.blanc,
-        fontSize: "0.88rem",
-        lineHeight: 1.7,
-        whiteSpace: "pre-wrap",
-      }}>
-        {msg.content}
+      <div style={{ display: "flex", flexDirection: "column", maxWidth: "80%", alignItems: isUser ? "flex-end" : "flex-start" }}>
+        <div style={{
+          background: isUser
+            ? `linear-gradient(135deg, ${T.or}22, ${T.orFond})`
+            : T.graphite,
+          border: isUser
+            ? `1px solid ${T.or}44`
+            : `1px solid #2A2A2A`,
+          borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+          padding: "12px 16px",
+          color: T.blanc,
+          fontSize: "0.88rem",
+          lineHeight: 1.7,
+          whiteSpace: "pre-wrap",
+        }}>
+          {msg.content}
+        </div>
+        {!isUser && (
+          <button
+            onClick={() => speakText(msg.content)}
+            style={{
+              background: "none", border: "none", color: T.gris,
+              fontSize: "0.68rem", cursor: "pointer", padding: "4px 2px 0",
+              display: "flex", alignItems: "center", gap: 4,
+            }}
+          >🔊 Écouter la question</button>
+        )}
       </div>
       {isUser && (
         <div style={{
@@ -534,13 +559,47 @@ function Simulator({ module, candidate, onBack }) {
   const [timerMinutes, setTimerMinutes] = useState(null); // null = pas de chronomètre
   const [timeLeft, setTimeLeft] = useState(null);
   const [blocked, setBlocked] = useState(false);
+  const [listening, setListening] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const initialPromptRef = useRef("");
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Reconnaissance vocale : dicte la réponse du candidat dans le champ de texte
+  function startListening() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("La reconnaissance vocale n'est pas supportée par ce navigateur. Utilise Chrome (ordinateur ou Android) pour cette fonctionnalité.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "fr-FR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setInput(transcript);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
 
   // Relance le compte à rebours à chaque nouvelle question du recruteur
   useEffect(() => {
@@ -1039,6 +1098,24 @@ function Simulator({ module, candidate, onBack }) {
           onBlur={e => e.target.style.borderColor = "#2A2A2A"}
         />
         <button
+          onClick={listening ? stopListening : startListening}
+          disabled={loading}
+          title={listening ? "Arrêter la dictée" : "Dicter ma réponse au micro"}
+          style={{
+            padding: "12px 16px",
+            background: listening ? "#D9534F" : T.graphite,
+            border: `1px solid ${listening ? "#D9534F" : "#2A2A2A"}`,
+            borderRadius: 4,
+            color: listening ? "#fff" : T.gris,
+            fontSize: "1.1rem",
+            cursor: loading ? "not-allowed" : "pointer",
+            flexShrink: 0,
+            height: 44,
+            transition: "all 0.2s",
+            animation: listening ? "micPulse 1.2s infinite" : "none",
+          }}
+        >{listening ? "⏹️" : "🎤"}</button>
+        <button
           onClick={send}
           disabled={loading || !input.trim()}
           style={{
@@ -1065,6 +1142,10 @@ function Simulator({ module, candidate, onBack }) {
         @keyframes pulse {
           0%, 100% { transform: translateY(0); opacity: 0.6; }
           50% { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes micPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.5); }
+          50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
         }
         textarea::placeholder { color: #555; }
         * { box-sizing: border-box; }
