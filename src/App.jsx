@@ -1,824 +1,247 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { jsPDF } from "jspdf";
 
-// ── Design tokens ── Héméra, déesse de l'aube : de la nuit naît la lumière ──
 const T = {
-  noir: "#FBF1E1",
-  charbon: "#F5E6C8",
-  graphite: "#FFFCF5",
-  or: "#D9641E",
-  orPale: "#F2A93C",
-  orFond: "#FBE3C4",
-  blanc: "#2B1B10",
-  gris: "#8A6F5C",
-  grisClair: "#5C4A3D",
-  nuit: "#3B2145",
-  braise: "#C43E1C",
-  bordure: "#E8D2AC",
+  bg: "#0F172A",
+  bg2: "#111C33",
+  card: "rgba(255,255,255,0.08)",
+  card2: "rgba(255,255,255,0.12)",
+  line: "rgba(255,255,255,0.12)",
+  text: "#F8FAFC",
+  muted: "#C7D2FE",
+  soft: "#94A3B8",
+  accent: "#F59E0B",
+  accent2: "#22C55E",
+  danger: "#EF4444",
+  info: "#38BDF8",
+  shadow: "0 24px 80px rgba(2, 6, 23, 0.45)",
 };
 
 const FONT_DISPLAY = "'Fraunces', Georgia, serif";
 const FONT_BODY = "'Manrope', 'Segoe UI', system-ui, sans-serif";
-const FONT_MONO = "'Space Mono', 'Courier New', monospace";
 
-// ── System prompt ──────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `Tu es un coach expert en recrutement, spécialisé dans la préparation aux entretiens d'embauche pour les professionnels de la comptabilité, finance et gestion en Afrique francophone, particulièrement au Gabon. Tu maîtrises le SYSCOHADA révisé, la fiscalité gabonaise (TVA 18%, TPS 9.5%, IS 30%), les normes OHADA, et la sécurité sociale gabonaise (CNSS 2026: 18% patronale/5% salariale, plafond 1 500 000 FCFA; CNAMGS: 3.5%/1.5%).
+const SYSTEM_PROMPT = `Tu es un coach expert en recrutement, spécialisé dans la préparation aux entretiens d'embauche pour les professionnels de la comptabilité, finance et gestion en Afrique francophone, particulièrement au Gabon. Tu maîtrises le SYSCOHADA révisé, la fiscalité gabonaise (TVA 18%, TPS 9.5%, IS 30%), les normes OHADA, et la sécurité sociale gabonaise (CNSS 2026: 18% patronale/5% salariale, plafond 1 500 000 FCFA; CNAMGS: 3.5%/1.5%). Tu joues le rôle d'un recruteur strict et professionnel. Tu poses UNE question à la fois. Après chaque réponse tu: 1. Attribues une note de 1 à 5 étoiles (⭐) 2. Identifies les points forts (✅) 3. Identifies les points à améliorer (⚠️) 4. Proposes une reformulation optimisée (💬) RÈGLES STRICTES: - Si la note est < 4⭐, tu demandes de recommencer la même question - Tu ne passes à la suivante QUE si note ≥ 4⭐ - Tu signales chaque usage de "on/nous" au lieu de "JE" - Tu signales si le candidat dit "voilà" en conclusion - Tu exiges toujours un exemple concret - Tu exiges une conclusion reliée au poste visé Commence par te présenter comme recruteur et poser la première question selon le module choisi.`;
 
-Tu joues le rôle d'un recruteur strict et professionnel. Tu poses UNE question à la fois. Après chaque réponse tu:
-1. Attribues une note de 1 à 5 étoiles (⭐)
-2. Identifies les points forts (✅)
-3. Identifies les points à améliorer (⚠️)
-4. Proposes une reformulation optimisée (💬)
-
-RÈGLES STRICTES:
-- Si la note est < 4⭐, tu demandes de recommencer la même question
-- Tu ne passes à la suivante QUE si note ≥ 4⭐
-- Tu signales chaque usage de "on/nous" au lieu de "JE"
-- Tu signales si le candidat dit "voilà" en conclusion
-- Tu exiges toujours un exemple concret
-- Tu exiges une conclusion reliée au poste visé
-
-Commence par te présenter comme recruteur et poser la première question selon le module choisi.`;
-
-// ── Modules ────────────────────────────────────────────────────────────────
 const MODULES = [
-  {
-    id: "personnalite",
-    label: "Personnalité & Motivation",
-    icon: "👤",
-    desc: "Présentation, qualités, défauts, motivation, prétentions salariales",
-    questions: 13,
-    color: T.or,
-    prompt: `Module: PERSONNALITÉ. Présente-toi comme recruteur d'une grande entreprise gabonaise cherchant un Chef Comptable. Pose la première question: "Présentez-vous."`,
-  },
-  {
-    id: "management",
-    label: "Management d'équipe",
-    icon: "👥",
-    desc: "Organisation, délégation, gestion des conflits, formation des juniors",
-    questions: 10,
-    color: "#A8763E",
-    prompt: `Module: MANAGEMENT. Présente-toi comme recruteur. Pose la première question sur l'organisation d'une équipe comptable.`,
-  },
-  {
-    id: "technique",
-    label: "Technique Comptable et audit",
-    icon: "📊",
-    desc: "SYSCOHADA Révisé, DSF, immobilisations, provisions, audit, normes IFRS, contrôle de gestion,  rapprochements bancaires",
-    questions: 20,
-    color: "#6B8E5A",
-    prompt: `Module: TECHNIQUE COMPTABLE ET AUDIT. Présente-toi comme recruteur. Pose la première question: "Quels logiciels comptables maîtrisez-vous et comment les avez-vous utilisés concrètement?"`,
-  },
-  {
-    id: "OHADA",
-    label: "Réglementation OHADA",
-    icon: "⚖️",
-    desc: "SYSCOHADA révisé 2018, obligations, sanctions, états financiers",
-    questions: 10,
-    color: "#8B5FA0",
-    prompt: `Module: SYSCOHADA révisé 2018. Présente-toi comme recruteur. Pose la première question sur le cadre comptable OHADA au Gabon.`,
-  },
-  {
-    id: "fiscalite",
-    label: "Fiscalité Gabonaise",
-    icon: "🏛️",
-    desc: "TVA 18%, TPS 9.5%, IS 30%, DSF, contrôles fiscaux, Digitax, loi des finances rectificative Gabon 2026",
-    questions: 15,
-    color: "#C43E1C",
-    prompt: `Module: FISCALITÉ GABONAISE. Présente-toi comme recruteur. Pose la première question sur les obligations fiscales d'une entreprise au Gabon.`,
-  },
-  {
-    id: "social",
-    label: "Sécurité Sociale",
-    icon: "🏥",
-    desc: "CNSS, CNAMGS, taux 2026, calculs, sanctions, contrôles",
-    questions: 10,
-    color: "#3D7A8C",
-    prompt: `Module: SÉCURITÉ SOCIALE. Présente-toi comme recruteur. Pose la première question sur les obligations sociales d'un employeur au Gabon.`,
-  },
-  {
-    id: "complet",
-    label: "Simulation Complète",
-    icon: "🎯",
-    desc: "Simulation d'entretien complet de A à Z — personnalité, management, technique, OHADA, fiscalité, social",
-    questions: 78,
-    color: T.or,
-    prompt: `Module: SIMULATION COMPLÈTE. Présente-toi comme recruteur d'une entreprise gabonaise recrutant un Chef Comptable, sans préciser de nom d'entreprise fictive. Mène un entretien complet couvrant successivement : présentation et motivation, management d'équipe, technique comptable (SYSCOHADA révisé), réglementation OHADA, fiscalité gabonaise (TVA, TPS, IS), et sécurité sociale (CNSS, CNAMGS). Présente-toi et commence par la Section 1 - Personnalité, Question 1: "Présentez-vous."`,
-  },
+  { id: "personnalite", label: "Personnalité & Motivation", icon: "👤", desc: "Présentation, qualités, défauts, motivation, prétentions salariales", questions: 13, color: "#F59E0B", prompt: `Module: PERSONNALITÉ. Présente-toi comme recruteur d'une grande entreprise gabonaise cherchant un Chef Comptable. Pose la première question: "Présentez-vous."` },
+  { id: "management", label: "Management d'équipe", icon: "👥", desc: "Organisation, délégation, gestion des conflits, formation des juniors", questions: 10, color: "#8B5CF6", prompt: `Module: MANAGEMENT. Présente-toi comme recruteur. Pose la première question sur l'organisation d'une équipe comptable.` },
+  { id: "technique", label: "Technique Comptable et audit", icon: "📊", desc: "SYSCOHADA Révisé, DSF, immobilisations, provisions, audit, normes IFRS, contrôle de gestion, rapprochements bancaires", questions: 20, color: "#10B981", prompt: `Module: TECHNIQUE COMPTABLE ET AUDIT. Présente-toi comme recruteur. Pose la première question: "Quels logiciels comptables maîtrisez-vous et comment les avez-vous utilisés concrètement?"` },
+  { id: "OHADA", label: "Réglementation OHADA", icon: "⚖️", desc: "SYSCOHADA révisé 2018, obligations, sanctions, états financiers", questions: 10, color: "#38BDF8", prompt: `Module: SYSCOHADA révisé 2018. Présente-toi comme recruteur. Pose la première question sur le cadre comptable OHADA au Gabon.` },
+  { id: "fiscalite", label: "Fiscalité Gabonaise", icon: "🏛️", desc: "TVA 18%, TPS 9.5%, IS 30%, DSF, contrôles fiscaux, Digitax, loi des finances rectificative Gabon 2026", questions: 15, color: "#F97316", prompt: `Module: FISCALITÉ GABONAISE. Présente-toi comme recruteur. Pose la première question sur les obligations fiscales d'une entreprise au Gabon.` },
+  { id: "social", label: "Sécurité Sociale", icon: "🏥", desc: "CNSS, CNAMGS, taux 2026, calculs, sanctions, contrôles", questions: 10, color: "#14B8A6", prompt: `Module: SÉCURITÉ SOCIALE. Présente-toi comme recruteur. Pose la première question sur les obligations sociales d'un employeur au Gabon.` },
+  { id: "complet", label: "Simulation Complète", icon: "🎯", desc: "Simulation d'entretien complet de A à Z — personnalité, management, technique, OHADA, fiscalité, social", questions: 78, color: "#F59E0B", prompt: `Module: SIMULATION COMPLÈTE. Présente-toi comme recruteur d'une entreprise gabonaise recrutant un Chef Comptable, sans préciser de nom d'entreprise fictive. Mène un entretien complet couvrant successivement : présentation et motivation, management d'équipe, technique comptable (SYSCOHADA révisé), réglementation OHADA, fiscalité gabonaise (TVA, TPS, IS), et sécurité sociale (CNSS, CNAMGS). Présente-toi et commence par la Section 1 - Personnalité, Question 1: "Présentez-vous."` },
 ];
 
-// ── Options de chronomètre ─────────────────────────────────────────────────
 const TIMER_OPTIONS = [
   { label: "Sans chronomètre", value: null },
-  { label: "1 min / question", value: 1 },
-  { label: "2 min / question", value: 2 },
-  { label: "3 min / question", value: 3 },
-  { label: "5 min / question", value: 5 },
+  { label: "1 min / question", value: 60 },
+  { label: "2 min / question", value: 120 },
+  { label: "3 min / question", value: 180 },
+  { label: "5 min / question", value: 300 },
 ];
 
 function formatTime(s) {
-  if (s === null || s === undefined) return "";
+  if (s == null) return "";
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-// ── Synthèse vocale ───────────────────────────────────────────────────────
 function speakText(text) {
-  if (!window.speechSynthesis) {
-    alert("La lecture audio n'est pas supportée par ce navigateur. Essaie avec Chrome.");
-    return;
-  }
+  if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "fr-FR";
-  utterance.rate = 0.95;
-  window.speechSynthesis.speak(utterance);
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "fr-FR";
+  u.rate = 0.96;
+  window.speechSynthesis.speak(u);
 }
 
-// ── API call ───────────────────────────────────────────────────────────────
-async function callClaude(messages) {
+async function callClaude(messages, system = SYSTEM_PROMPT) {
   const res = await fetch("/api/interview/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system: SYSTEM_PROMPT,
-      messages,
-    }),
+    body: JSON.stringify({ system, messages }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Erreur de connexion");
   return data.reply || "Erreur de connexion.";
 }
 
-// ── Components ─────────────────────────────────────────────────────────────
-function Logo() {
-  return (
-    <div
-      onClick={() => {
-        window.location.href = "/";
-      }}
-      role="button"
-      title="Retour à l'accueil"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        cursor: "pointer",
-        userSelect: "none",
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          background: `radial-gradient(circle at 35% 30%, ${T.orPale}, ${T.or} 70%)`,
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 18,
-          fontWeight: 700,
-          color: T.blanc,
-          fontFamily: FONT_DISPLAY,
-          boxShadow: `0 0 4px ${T.orPale}, 0 0 18px ${T.or}88, 0 0 34px ${T.or}44`,
-        }}
-      >
-        H
-      </div>
-      <div>
-        <div
-          style={{
-            fontFamily: FONT_DISPLAY,
-            fontSize: "1.1rem",
-            fontWeight: 700,
-            color: T.or,
-            letterSpacing: 3,
-            textTransform: "uppercase",
-          }}
-        >
-          Héméra
-        </div>
-        <div
-          style={{
-            fontSize: "0.6rem",
-            color: T.gris,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            fontFamily: FONT_MONO,
-          }}
-        >
-          Prépare · Brille · Réussis
-        </div>
-      </div>
-    </div>
-  );
+const cx = (...parts) => parts.filter(Boolean).join(" ");
+
+function GlassCard({ children, className = "", style = {} }) {
+  return <div className={cx("glass-card", className)} style={style}>{children}</div>;
 }
 
-// ── Landing Page ───────────────────────────────────────────────────────────
-function Landing({ onStart }) {
-  const [hovered, setHovered] = useState(null);
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: T.noir,
-        color: T.blanc,
-        fontFamily: FONT_BODY,
-        overflowX: "hidden",
-        position: "relative",
-      }}
-    >
-      {/* Halo d'aube */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          top: "-10%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 900,
-          height: 900,
-          maxWidth: "140vw",
-          background: `radial-gradient(circle, ${T.orPale}55 0%, ${T.or}22 35%, transparent 70%)`,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-
-      {/* Nav */}
-      <nav
-        style={{
-          padding: "20px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: `1px solid ${T.bordure}`,
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <Logo />
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: T.gris,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            fontFamily: FONT_MONO,
-          }}
-        >
-          Gabon · OHADA · 2026
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <div
-        style={{
-          padding: "100px 32px 80px",
-          maxWidth: 900,
-          margin: "0 auto",
-          textAlign: "center",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <div
-          style={{
-            width: 1,
-            height: 60,
-            background: `linear-gradient(to bottom, transparent, ${T.or})`,
-            margin: "0 auto 32px",
-          }}
-        />
-
-        <div
-          style={{
-            fontSize: "0.7rem",
-            color: T.or,
-            letterSpacing: 4,
-            textTransform: "uppercase",
-            marginBottom: 20,
-          }}
-        >
-          Simulateur d'entretien professionnel
-        </div>
-
-        <h1
-          style={{
-            fontFamily: FONT_DISPLAY,
-            fontSize: "clamp(2.2rem, 5vw, 3.8rem)",
-            fontWeight: 400,
-            lineHeight: 1.2,
-            color: T.blanc,
-            margin: "0 0 16px",
-            letterSpacing: -0.3,
-          }}
-        >
-          Préparez-vous comme jamais
-          <br />
-          <span style={{ color: T.or }}>aucun candidat</span> ne se prépare
-        </h1>
-
-        <p
-          style={{
-            fontSize: "1rem",
-            color: T.gris,
-            maxWidth: 580,
-            margin: "0 auto 16px",
-            lineHeight: 1.8,
-          }}
-        >
-          Le premier simulateur d'entretien conçu spécifiquement pour les
-          professionnels de la comptabilité et de la finance au Gabon. SYSCOHADA,
-          fiscalité gabonaise, OHADA — maîtrisez chaque question avec l'IA comme
-          coach.
-        </p>
-
-        <p
-          style={{
-            fontSize: "0.85rem",
-            color: T.gris,
-            maxWidth: 580,
-            margin: "0 auto 40px",
-            lineHeight: 1.7,
-          }}
-        >
-          Conçu pour les professionnels de la comptabilité et de la finance au
-          Gabon — Libreville, Port‑Gentil, Franceville et toute la sous‑région.
-        </p>
-
-        {/* Stats */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 56,
-            marginBottom: 56,
-          }}
-        >
-          {[
-            { n: "7", l: "Modules" },
-            { n: "OHADA", l: "Révisé" },
-            { n: "5⭐", l: "Standard exigé" },
-          ].map((s) => (
-            <div key={s.l} style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  fontFamily: FONT_DISPLAY,
-                  fontSize: "2rem",
-                  fontWeight: 700,
-                  color: T.or,
-                  lineHeight: 1,
-                }}
-              >
-                {s.n}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: T.gris,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  marginTop: 6,
-                }}
-              >
-                {s.l}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={() => onStart("modules")}
-          style={{
-            background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
-            color: T.blanc,
-            border: "none",
-            padding: "16px 48px",
-            fontSize: "0.9rem",
-            fontWeight: 700,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            cursor: "pointer",
-            borderRadius: 2,
-            transition: "all 0.2s",
-            boxShadow: `0 4px 30px ${T.or}40`,
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.boxShadow = `0 8px 40px ${T.or}60`)
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.boxShadow = `0 4px 30px ${T.or}40`)
-          }
-        >
-          Commencer la simulation →
-        </button>
-
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: T.gris,
-            marginTop: 14,
-            lineHeight: 1.5,
-          }}
-        >
-          Gratuit pour le module Personnalité · Accès complet via Mobile Money
-        </div>
-
-        <div
-          style={{
-            width: 1,
-            height: 60,
-            background: `linear-gradient(to bottom, ${T.or}, transparent)`,
-            margin: "56px auto 0",
-          }}
-        />
-      </div>
-
-      {/* Modules preview */}
-      <div
-        style={{
-          padding: "0 32px 80px",
-          maxWidth: 900,
-          margin: "0 auto",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "0.65rem",
-            color: T.gris,
-            letterSpacing: 4,
-            textTransform: "uppercase",
-            textAlign: "center",
-            marginBottom: 40,
-          }}
-        >
-          Modules disponibles
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {MODULES.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => onStart("simulator", m)}
-              onMouseEnter={() => setHovered(m.id)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                background: hovered === m.id ? T.graphite : T.charbon,
-                border: `1px solid ${
-                  hovered === m.id ? T.or + "66" : T.bordure
-                }`,
-                borderRadius: 6,
-                padding: "22px 20px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                transform: hovered === m.id ? "translateY(-3px)" : "none",
-                boxShadow:
-                  hovered === m.id
-                    ? `0 10px 30px ${T.or}15`
-                    : `0 2px 10px ${T.noir}08`,
-              }}
-            >
-              <div style={{ fontSize: 24, marginBottom: 10 }}>{m.icon}</div>
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  color: hovered === m.id ? T.or : T.blanc,
-                  marginBottom: 6,
-                  transition: "color 0.2s",
-                }}
-              >
-                {m.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: T.gris,
-                  lineHeight: 1.5,
-                  marginBottom: 12,
-                }}
-              >
-                {m.desc}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.65rem",
-                  color: T.or,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                }}
-              >
-                {m.questions} questions
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        style={{
-          borderTop: `1px solid ${T.bordure}`,
-          padding: "28px 32px",
-          textAlign: "center",
-        }}
-      >
-        <Logo />
-        <div
-          style={{
-            fontSize: "0.7rem",
-            color: T.gris,
-            marginTop: 12,
-            letterSpacing: 1,
-            lineHeight: 1.5,
-          }}
-        >
-          Conçu pour les professionnels gabonais · SYSCOHADA 2018 · Fiscalité
-          2026 · CNSS & CNAMGS
-        </div>
-      </div>
-    </div>
-  );
+function ProgressBar({ value, max }) {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  return <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>;
 }
 
-// ── Module Selection ───────────────────────────────────────────────────────
-function ModuleSelect({ onSelect, onBack }) {
-  const [hovered, setHovered] = useState(null);
+function App() {
+  const [selectedModule, setSelectedModule] = useState(MODULES[0]);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [score, setScore] = useState(0);
+  const [step, setStep] = useState(0);
+  const [timerOption, setTimerOption] = useState(null);
+  const [remaining, setRemaining] = useState(null);
+  const [mode, setMode] = useState("strict");
+  const [error, setError] = useState("");
+  const endRef = useRef(null);
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: T.noir,
-        color: T.blanc,
-        fontFamily: FONT_BODY,
-      }}
-    >
-      <nav
-        style={{
-          padding: "20px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: `1px solid ${T.bordure}`,
-        }}
-      >
-        <Logo />
-        <button
-          onClick={onBack}
-          style={{
-            background: "none",
-            border: `1px solid ${T.bordure}`,
-            color: T.gris,
-            padding: "8px 16px",
-            fontSize: "0.75rem",
-            cursor: "pointer",
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            borderRadius: 2,
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = T.graphite;
-            e.currentTarget.style.color = T.blanc;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "none";
-            e.currentTarget.style.color = T.gris;
-          }}
-        >
-          ← Retour
-        </button>
-      </nav>
+  const progress = useMemo(() => {
+    const total = selectedModule.questions || 1;
+    return Math.min(100, (step / total) * 100);
+  }, [step, selectedModule]);
 
-      <div style={{ padding: "48px 32px", maxWidth: 900, margin: "0 auto" }}>
-        <div
-          style={{
-            fontSize: "0.65rem",
-            color: T.or,
-            letterSpacing: 4,
-            textTransform: "uppercase",
-            marginBottom: 12,
-          }}
-        >
-          Choisissez votre module
-        </div>
-        <h2
-          style={{
-            fontFamily: FONT_DISPLAY,
-            fontSize: "2rem",
-            fontWeight: 500,
-            color: T.blanc,
-            margin: "0 0 48px",
-            letterSpacing: -0.2,
-          }}
-        >
-          Sur quoi souhaitez-vous vous entraîner ?
-        </h2>
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 18,
-          }}
-        >
-          {MODULES.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => onSelect(m)}
-              onMouseEnter={() => setHovered(m.id)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                background: hovered === m.id ? T.graphite : T.charbon,
-                border: `1px solid ${
-                  hovered === m.id ? T.or + "66" : T.bordure
-                }`,
-                borderRadius: 6,
-                padding: "26px 22px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                transform: hovered === m.id ? "translateY(-3px)" : "none",
-                boxShadow:
-                  hovered === m.id
-                    ? `0 10px 30px ${T.or}15`
-                    : `0 2px 10px ${T.noir}08`,
-              }}
-            >
-              <div style={{ fontSize: 28, marginBottom: 12 }}>{m.icon}</div>
-              <div
-                style={{
-                  fontSize: "0.9rem",
-                  fontWeight: 700,
-                  color: hovered === m.id ? T.or : T.blanc,
-                  marginBottom: 8,
-                  transition: "color 0.2s",
-                }}
-              >
-                {m.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.78rem",
-                  color: T.gris,
-                  lineHeight: 1.6,
-                  marginBottom: 14,
-                }}
-              >
-                {m.desc}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.65rem",
-                  color: T.or,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                }}
-              >
-                {m.questions} questions
-              </div>
-            </div>
-          ))}
-        </div>
+  useEffect(() => {
+    if (!started || timerOption == null) return;
+    setRemaining(timerOption);
+    const id = setInterval(() => setRemaining((s) => {
+      if (s == null) return s;
+      if (s <= 1) return 0;
+      return s - 1;
+    }), 1000);
+    return () => clearInterval(id);
+  }, [started, timerOption, step]);
 
-        <div
-          style={{
-            marginTop: 48,
-            fontSize: "0.8rem",
-            color: T.gris,
-            lineHeight: 1.6,
-            maxWidth: 620,
-          }}
-        >
-          Chaque module vous plonge dans une simulation d'entretien réaliste,
-          avec feedback immédiat, note sur 5⭐ et reformulations optimisées.
-          Commencez par le module Personnalité (gratuit), puis débloquez l'accès
-          complet via Mobile Money.
-        </div>
-      </div>
-
-      {/* Footer simplifié */}
-      <div
-        style={{
-          borderTop: `1px solid ${T.bordure}`,
-          padding: "20px 32px",
-          textAlign: "center",
-          marginTop: 40,
-        }}
-      >
-        <div
-          style={{
-            fontSize: "0.7rem",
-            color: T.gris,
-            letterSpacing: 1,
-          }}
-        >
-          Héméra · Simulateur d'entretien pour professionnels gabonais
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── App (structure minimale – à compléter avec ton simulateur) ───────────
-export default function App() {
-  const [screen, setScreen] = useState("landing"); // "landing" | "modules" | "simulator"
-  const [selectedModule, setSelectedModule] = useState(null);
-
-  function handleStart(target, module = null) {
-    if (target === "modules") {
-      setScreen("modules");
-    } else if (target === "simulator" && module) {
-      setSelectedModule(module);
-      setScreen("simulator");
+  const startInterview = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const system = `${SYSTEM_PROMPT}
+Mode d'évaluation: ${mode}. Module choisi: ${selectedModule.label}.`;
+      const first = await callClaude([{ role: "user", content: selectedModule.prompt }], system);
+      setMessages([{ role: "assistant", content: first }]);
+      setStarted(true);
+      setStep(1);
+      if (timerOption != null) setRemaining(timerOption);
+      speakText(first);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  function handleBackToLanding() {
-    setScreen("landing");
-    setSelectedModule(null);
-  }
+  const sendAnswer = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    setInput("");
+    setLoading(true);
+    setError("");
+    try {
+      const system = `${SYSTEM_PROMPT}
+Mode d'évaluation: ${mode}. Module choisi: ${selectedModule.label}.`;
+      const reply = await callClaude(nextMessages, system);
+      setMessages([...nextMessages, { role: "assistant", content: reply }]);
+      setStep((s) => s + 1);
+      speakText(reply);
+      if (timerOption != null) setRemaining(timerOption);
+      const m = reply.match(/(?:Note|score)\s*[:\-]?\s*(\d)/i);
+      if (m) setScore((prev) => Math.max(prev, Number(m[1])));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (screen === "landing") {
-    return <Landing onStart={handleStart} />;
-  }
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.text("Simulation d'entretien", 14, 16);
+    doc.setFont("helvetica", "normal");
+    let y = 28;
+    messages.forEach((m) => {
+      const text = `${m.role === "user" ? "Candidat" : "Recruteur"}: ${m.content}`;
+      const lines = doc.splitTextToSize(text, 180);
+      if (y + lines.length * 7 > 280) { doc.addPage(); y = 20; }
+      doc.text(lines, 14, y);
+      y += lines.length * 7 + 2;
+    });
+    doc.save("simulation-entretien.pdf");
+  };
 
-  if (screen === "modules") {
-    return (
-      <ModuleSelect
-        onSelect={(m) => handleStart("simulator", m)}
-        onBack={handleBackToLanding}
-      />
-    );
-  }
+  return (
+    <div className="app-shell">
+      <style>{`body{margin:0;background:radial-gradient(circle at top,#1E293B,#020617 65%);color:${T.text};font-family:${FONT_BODY};} *{box-sizing:border-box} .app-shell{min-height:100vh;padding:24px} .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:20px;align-items:stretch} .glass-card{backdrop-filter:blur(18px);background:${T.card};border:1px solid ${T.line};border-radius:24px;box-shadow:${T.shadow};padding:22px} .title{font-family:${FONT_DISPLAY};font-size:clamp(2rem,4vw,4rem);line-height:1.02;margin:0 0 12px} .muted{color:${T.muted}} .soft{color:${T.soft}} .btn{border:0;border-radius:16px;padding:14px 18px;font-weight:700;cursor:pointer} .btn-primary{background:linear-gradient(135deg,#F59E0B,#F97316);color:#111827} .btn-secondary{background:${T.card2};color:${T.text};border:1px solid ${T.line}} .grid{display:grid;gap:16px} .modules{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))} .module{padding:18px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid ${T.line};cursor:pointer;transition:.2s transform,.2s background} .module:hover{transform:translateY(-2px);background:rgba(255,255,255,.1)} .module.active{outline:2px solid ${T.accent}} .progress{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#38BDF8,#22C55E)} .chat{max-height:520px;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px} .bubble{max-width:82%;padding:14px 16px;border-radius:18px;line-height:1.55} .bubble.user{align-self:flex-end;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35)} .bubble.assistant{align-self:flex-start;background:rgba(255,255,255,.07);border:1px solid ${T.line}} textarea{width:100%;min-height:110px;resize:vertical;border-radius:18px;border:1px solid ${T.line};background:rgba(15,23,42,.6);color:${T.text};padding:14px 16px;font:inherit} select{width:100%;padding:12px 14px;border-radius:14px;border:1px solid ${T.line};background:rgba(15,23,42,.6);color:${T.text}} .pill{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid ${T.line};color:${T.text}} @media (max-width: 980px){.hero{grid-template-columns:1fr}}`}</style>
 
-  if (screen === "simulator" && selectedModule) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: T.noir,
-          color: T.blanc,
-          fontFamily: FONT_BODY,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 40,
-          textAlign: "center",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontFamily: FONT_DISPLAY,
-              fontSize: "1.8rem",
-              fontWeight: 600,
-              color: T.blanc,
-              marginBottom: 12,
-            }}
-          >
-            Module : {selectedModule.label}
+      <div className="hero">
+        <GlassCard>
+          <div className="pill">Coach IA • Entretien professionnel • Gabon / Finance / Comptabilité</div>
+          <h1 className="title">Prépare un candidat comme dans un vrai entretien premium.</h1>
+          <p className="muted">Simulation immersive, feedback strict, export PDF, chronomètre, synthèse vocale et progression claire.</p>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", marginTop: 18 }}>
+            <button className="btn btn-primary" onClick={startInterview} disabled={loading}>{started ? "Relancer la simulation" : "Démarrer l’entretien"}</button>
+            <button className="btn btn-secondary" onClick={exportPDF} disabled={!messages.length}>Exporter PDF</button>
           </div>
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: T.gris,
-              maxWidth: 500,
-              margin: "0 auto",
-              lineHeight: 1.6,
-            }}
-          >
-            Écran de simulation à intégrer ici (chat avec l'IA, timer, feedback,
-            export PDF, etc.).
+          {error && <p style={{ color: T.danger, marginTop: 12 }}>{error}</p>}
+        </GlassCard>
+
+        <GlassCard>
+          <div className="grid" style={{ gap: 12 }}>
+            <div><div className="soft">Question</div><strong>{step}</strong></div>
+            <div><div className="soft">Score</div><strong>{score || "—"}</strong></div>
+            <div><div className="soft">Temps restant</div><strong>{formatTime(remaining)}</strong></div>
+            <ProgressBar value={progress} max={100} />
           </div>
-          <button
-            onClick={handleBackToLanding}
-            style={{
-              marginTop: 28,
-              background: "none",
-              border: `1px solid ${T.bordure}`,
-              color: T.gris,
-              padding: "10px 18px",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              borderRadius: 2,
-            }}
-          >
-            ← Retour à l'accueil
-          </button>
-        </div>
+        </GlassCard>
       </div>
-    );
-  }
 
-  // Fallback
-  return <Landing onStart={handleStart} />;
+      <div className="grid" style={{ gridTemplateColumns: "1.1fr .9fr", marginTop: 20 }}>
+        <GlassCard>
+          <h2 style={{ marginTop: 0 }}>Modules</h2>
+          <div className="grid modules">
+            {MODULES.map((m) => (
+              <div key={m.id} className={cx("module", selectedModule.id === m.id && "active")} onClick={() => setSelectedModule(m)}>
+                <div style={{ fontSize: 26 }}>{m.icon}</div>
+                <h3 style={{ margin: "10px 0 6px" }}>{m.label}</h3>
+                <p className="soft" style={{ margin: 0 }}>{m.desc}</p>
+                <p className="muted" style={{ marginBottom: 0 }}>{m.questions} questions</p>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 18 }}>
+            <label className="soft">Mode d’entretien</label>
+            <select value={mode} onChange={(e) => setMode(e.target.value)}>
+              <option value="strict">Strict / recruteur exigeant</option>
+              <option value="coach">Coach structuré</option>
+            </select>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <label className="soft">Chronomètre</label>
+            <select value={timerOption ?? ""} onChange={(e) => setTimerOption(e.target.value === "" ? null : Number(e.target.value))}>
+              {TIMER_OPTIONS.map((t) => <option key={String(t.value)} value={t.value ?? ""}>{t.label}</option>)}
+            </select>
+          </div>
+        </GlassCard>
+
+        <GlassCard>
+          <h2 style={{ marginTop: 0 }}>Simulation</h2>
+          <div className="chat">
+            {messages.map((m, i) => <div key={i} className={cx("bubble", m.role)}>{m.content}</div>)}
+            {loading && <div className="bubble assistant">Analyse en cours…</div>}
+            <div ref={endRef} />
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Réponse du candidat…" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendAnswer(); }} />
+            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 12 }}>
+              <button className="btn btn-primary" onClick={sendAnswer} disabled={!started || loading}>Envoyer</button>
+              <button className="btn btn-secondary" onClick={() => speakText(messages[messages.length - 1]?.content || "")}>Relire la question</button>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+    </div>
+  );
+}
+
+export default App;
