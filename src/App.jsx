@@ -1,30 +1,18 @@
 import { useState } from "react";
-// import { jsPDF } from "jspdf"; // si tu utilises l'export PDF ailleurs
 
 // ── Design tokens ── Héméra, déesse de l'aube : de la nuit naît la lumière ──
 const T = {
-  // Fond : ivoire chaud, comme le premier jour qui se lève (plus de noir)
   noir: "#FBF1E1",
-  // Surface secondaire (nav, alternance) : sable doré
   charbon: "#F5E6C8",
-  // Cartes / champs : ivoire clair
   graphite: "#FFFCF5",
-  // Accent principal : braise ambrée — la couleur du soleil qui perce
   or: "#D9641E",
-  // Halo doré — points forts, dégradés
   orPale: "#F2A93C",
-  // Fond doux pour badges / encarts
   orFond: "#FBE3C4",
-  // Texte principal : encre brune chaude (jamais de noir pur)
   blanc: "#2B1B10",
-  // Texte secondaire
   gris: "#8A6F5C",
   grisClair: "#5C4A3D",
-  // Résidu de nuit — contrastes profonds, ombres
   nuit: "#3B2145",
-  // Braise vive — alertes, urgence
   braise: "#C43E1C",
-  // Bordures chaudes
   bordure: "#E8D2AC",
 };
 
@@ -134,7 +122,7 @@ function formatTime(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-// ── Synthèse vocale (lecture audio des questions) ───────────────────────────
+// ── Synthèse vocale ───────────────────────────────────────────────────────
 function speakText(text) {
   if (!window.speechSynthesis) {
     alert("La lecture audio n'est pas supportée par ce navigateur. Essaie avec Chrome.");
@@ -190,7 +178,7 @@ function Logo() {
           fontSize: 18,
           fontWeight: 700,
           color: T.blanc,
-          fontFamily: "'Fraunces', Georgia, serif",
+          fontFamily: FONT_DISPLAY,
           boxShadow: `0 0 4px ${T.orPale}, 0 0 18px ${T.or}88, 0 0 34px ${T.or}44`,
         }}
       >
@@ -199,7 +187,7 @@ function Logo() {
       <div>
         <div
           style={{
-            fontFamily: "'Fraunces', Georgia, serif",
+            fontFamily: FONT_DISPLAY,
             fontSize: "1.1rem",
             fontWeight: 700,
             color: T.or,
@@ -215,7 +203,7 @@ function Logo() {
             color: T.gris,
             letterSpacing: 2,
             textTransform: "uppercase",
-            fontFamily: "'Space Mono', monospace",
+            fontFamily: FONT_MONO,
           }}
         >
           Prépare · Brille · Réussis
@@ -240,7 +228,7 @@ function Landing({ onStart }) {
         position: "relative",
       }}
     >
-      {/* Halo d'aube — la lumière d'Héméra perçant derrière le titre */}
+      {/* Halo d'aube */}
       <div
         aria-hidden="true"
         style={{
@@ -294,7 +282,6 @@ function Landing({ onStart }) {
           zIndex: 1,
         }}
       >
-        {/* Ornement vertical */}
         <div
           style={{
             width: 1,
@@ -654,4 +641,184 @@ function ModuleSelect({ onSelect, onBack }) {
                 border: `1px solid ${
                   hovered === m.id ? T.or + "66" : T.bordure
                 }`,
-              
+                borderRadius: 6,
+                padding: "26px 22px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                transform: hovered === m.id ? "translateY(-3px)" : "none",
+                boxShadow:
+                  hovered === m.id
+                    ? `0 10px 30px ${T.or}15`
+                    : `0 2px 10px ${T.noir}08`,
+              }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 12 }}>{m.icon}</div>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 700,
+                  color: hovered === m.id ? T.or : T.blanc,
+                  marginBottom: 8,
+                  transition: "color 0.2s",
+                }}
+              >
+                {m.label}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: T.gris,
+                  lineHeight: 1.6,
+                  marginBottom: 14,
+                }}
+              >
+                {m.desc}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.65rem",
+                  color: T.or,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {m.questions} questions
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: 48,
+            fontSize: "0.8rem",
+            color: T.gris,
+            lineHeight: 1.6,
+            maxWidth: 620,
+          }}
+        >
+          Chaque module vous plonge dans une simulation d'entretien réaliste,
+          avec feedback immédiat, note sur 5⭐ et reformulations optimisées.
+          Commencez par le module Personnalité (gratuit), puis débloquez l'accès
+          complet via Mobile Money.
+        </div>
+      </div>
+
+      {/* Footer simplifié */}
+      <div
+        style={{
+          borderTop: `1px solid ${T.bordure}`,
+          padding: "20px 32px",
+          textAlign: "center",
+          marginTop: 40,
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.7rem",
+            color: T.gris,
+            letterSpacing: 1,
+          }}
+        >
+          Héméra · Simulateur d'entretien pour professionnels gabonais
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── App (structure minimale – à compléter avec ton simulateur) ───────────
+export default function App() {
+  const [screen, setScreen] = useState("landing"); // "landing" | "modules" | "simulator"
+  const [selectedModule, setSelectedModule] = useState(null);
+
+  function handleStart(target, module = null) {
+    if (target === "modules") {
+      setScreen("modules");
+    } else if (target === "simulator" && module) {
+      setSelectedModule(module);
+      setScreen("simulator");
+    }
+  }
+
+  function handleBackToLanding() {
+    setScreen("landing");
+    setSelectedModule(null);
+  }
+
+  if (screen === "landing") {
+    return <Landing onStart={handleStart} />;
+  }
+
+  if (screen === "modules") {
+    return (
+      <ModuleSelect
+        onSelect={(m) => handleStart("simulator", m)}
+        onBack={handleBackToLanding}
+      />
+    );
+  }
+
+  if (screen === "simulator" && selectedModule) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: T.noir,
+          color: T.blanc,
+          fontFamily: FONT_BODY,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 40,
+          textAlign: "center",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontSize: "1.8rem",
+              fontWeight: 600,
+              color: T.blanc,
+              marginBottom: 12,
+            }}
+          >
+            Module : {selectedModule.label}
+          </div>
+          <div
+            style={{
+              fontSize: "0.9rem",
+              color: T.gris,
+              maxWidth: 500,
+              margin: "0 auto",
+              lineHeight: 1.6,
+            }}
+          >
+            Écran de simulation à intégrer ici (chat avec l'IA, timer, feedback,
+            export PDF, etc.).
+          </div>
+          <button
+            onClick={handleBackToLanding}
+            style={{
+              marginTop: 28,
+              background: "none",
+              border: `1px solid ${T.bordure}`,
+              color: T.gris,
+              padding: "10px 18px",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              borderRadius: 2,
+            }}
+          >
+            ← Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback
+  return <Landing onStart={handleStart} />;
