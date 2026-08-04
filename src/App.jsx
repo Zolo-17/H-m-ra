@@ -152,18 +152,76 @@ function speakText(text) {
 // On ne parle JAMAIS directement à l'API Anthropic depuis le navigateur
 // (la clé secrète serait exposée à tous les visiteurs). On passe par notre
 // propre backend (/api/interview/chat), qui lui, détient la clé en sécurité.
+// Renvoie null en cas d'échec (au lieu d'un texte d'erreur trompeur), pour
+// permettre au Simulator de basculer proprement en mode basique.
 async function callClaude(messages) {
-  const res = await fetch("/api/interview/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system: SYSTEM_PROMPT,
-      messages,
-    }),
-  });
-  const data = await res.json();
-  return data.reply || "Erreur de connexion.";
+  try {
+    const res = await fetch("/api/interview/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system: SYSTEM_PROMPT,
+        messages,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.error || !data.reply) return null;
+    return data.reply;
+  } catch {
+    return null;
+  }
 }
+
+// ── Banque de questions de secours ──────────────────────────────────────────
+// Utilisée automatiquement si l'IA est indisponible (crédit épuisé, panne,
+// compte suspendu) — garantit que l'app reste utilisable en toute circonstance.
+const FALLBACK_BANK = {
+  personnalite: [
+    { q: "Présentez-vous en tant que candidat au poste de Chef Comptable.", s: "Je suis [votre nom], comptable avec plusieurs années d'expérience en environnement SYSCOHADA. J'ai été responsable de la tenue des comptes et des déclarations fiscales dans mon poste actuel. Je souhaite aujourd'hui mettre mon expertise au service de votre structure, avec plus de responsabilités en clôture et en management." },
+    { q: "Quelle est votre principale qualité professionnelle ?", s: "Ma rigueur : je vérifie systématiquement mes rapprochements bancaires et mes déclarations avant validation, ce qui a permis de réduire les écarts de trésorerie dans mon poste précédent." },
+    { q: "Quel est votre principal défaut, et comment le gérez-vous ?", s: "J'ai tendance à vouloir tout vérifier moi-même. J'apprends à déléguer davantage aux membres juniors de l'équipe, tout en gardant un contrôle qualité sur les points clés." },
+    { q: "Pourquoi souhaitez-vous évoluer vers ce poste ?", s: "Je recherche un poste offrant plus de responsabilités en clôture des comptes et en management d'équipe, correspondant à mon évolution de carrière vers un poste de Chef Comptable." },
+  ],
+  management: [
+    { q: "Comment organiseriez-vous une équipe comptable de 4 personnes ?", s: "Je répartirais les tâches par pôle : fournisseurs, clients, paie, et je centraliserais la clôture et le reporting, avec des points hebdomadaires de suivi." },
+    { q: "Comment gérez-vous un conflit entre deux membres de votre équipe ?", s: "Je reçois chacun individuellement pour comprendre les points de vue, puis j'organise un échange cadré pour trouver un terrain d'entente, recentré sur les objectifs communs du service." },
+    { q: "Comment formez-vous un collaborateur junior ?", s: "Je commence par un accompagnement rapproché sur les tâches simples, puis j'augmente progressivement la complexité en validant systématiquement son travail avant transmission." },
+    { q: "Comment fixez-vous les priorités en période de clôture ?", s: "J'établis un rétroplanning avec les échéances légales (DSF, déclarations fiscales) et je concentre l'équipe sur les tâches à plus fort enjeu réglementaire." },
+  ],
+  technique: [
+    { q: "Quels logiciels comptables maîtrisez-vous et comment les utilisez-vous ?", s: "Je maîtrise Sage 100 (Comptabilité, Immobilisations, Gestion Commerciale) et Digitax pour la télédéclaration, utilisés au quotidien pour la tenue des comptes et les déclarations fiscales." },
+    { q: "Comment traitez-vous une immobilisation à l'acquisition ?", s: "Je l'enregistre à son coût d'acquisition hors taxes récupérables, je détermine son plan d'amortissement selon la durée d'usage SYSCOHADA, et je vérifie l'éligibilité à la TVA déductible." },
+    { q: "Comment justifiez-vous une provision pour risque ?", s: "Je m'assure qu'elle répond aux critères de probabilité et d'évaluation fiable de la sortie de ressources, avec les pièces justificatives à l'appui." },
+    { q: "Comment effectuez-vous un rapprochement bancaire ?", s: "Je compare le solde comptable au relevé bancaire, j'identifie les écritures en suspens, et je justifie tout écart avant la clôture du mois." },
+  ],
+  OHADA: [
+    { q: "Quelles sont les obligations comptables selon le SYSCOHADA révisé ?", s: "Toute entreprise doit tenir une comptabilité régulière et sincère, et produire des états financiers annuels (Bilan, Compte de résultat, TFT, Notes annexes) selon le système applicable à sa taille." },
+    { q: "Quelle est la différence entre système normal et système minimal de trésorerie ?", s: "Le système normal s'applique aux entités dépassant certains seuils et exige un jeu complet d'états financiers ; le système minimal, simplifié, cible les très petites entités." },
+    { q: "Quelles sanctions en cas de non-conformité aux normes OHADA ?", s: "Les sanctions vont du rejet de comptabilité par l'administration fiscale à des sanctions pénales en cas de comptabilité fictive ou de fraude caractérisée." },
+    { q: "Que change concrètement le droit uniforme OHADA pour un comptable ?", s: "Il harmonise les règles comptables entre les pays membres, facilitant la comparabilité des comptes et la sécurité juridique des opérations transfrontalières." },
+  ],
+  fiscalite: [
+    { q: "Quels sont les taux de TVA applicables au Gabon ?", s: "Le taux normal est de 18%, avec des taux réduits sur certains produits, et certaines opérations sont exonérées selon le Code Général des Impôts." },
+    { q: "Comment calculez-vous l'Impôt sur les Sociétés ?", s: "L'IS s'applique au taux de 30% sur le résultat fiscal, obtenu après réintégration des charges non déductibles et déduction des charges admises." },
+    { q: "Quelles sont les échéances déclaratives fiscales principales ?", s: "La TVA se déclare généralement mensuellement, la DSF annuellement, et les acomptes d'IS suivent un calendrier propre à chaque exercice." },
+    { q: "Comment gérez-vous un contrôle fiscal ?", s: "Je prépare l'ensemble des pièces justificatives, je vérifie la cohérence entre comptabilité et déclarations déposées, et je collabore de manière transparente avec l'administration." },
+  ],
+  social: [
+    { q: "Quels sont les taux de cotisation CNSS actuels ?", s: "La cotisation CNSS comprend une part patronale et une part salariale, appliquées sur un salaire plafonné, avec des taux distincts selon les branches (retraite, prestations familiales, risques professionnels)." },
+    { q: "Quel est le rôle de la CNAMGS ?", s: "La CNAMGS gère l'assurance maladie et garantit l'accès aux soins des assurés et de leurs ayants droit, financée par des cotisations patronales et salariales." },
+    { q: "Quelles sont les obligations déclaratives sociales d'un employeur ?", s: "L'employeur doit déclarer et reverser mensuellement les cotisations CNSS et CNAMGS, et transmettre les déclarations nominatives des salaires dans les délais." },
+    { q: "Que risque un employeur en cas de retard de cotisations sociales ?", s: "Il s'expose à des pénalités de retard et des majorations, et dans les cas graves à des poursuites affectant sa conformité vis-à-vis des organismes sociaux." },
+  ],
+};
+FALLBACK_BANK.complet = [
+  FALLBACK_BANK.personnalite[0],
+  FALLBACK_BANK.management[0],
+  FALLBACK_BANK.technique[0],
+  FALLBACK_BANK.OHADA[0],
+  FALLBACK_BANK.fiscalite[0],
+  FALLBACK_BANK.social[0],
+];
 
 // ── Components ─────────────────────────────────────────────────────────────
 function Logo() {
@@ -775,6 +833,8 @@ function Simulator({ module, candidate, onBack }) {
   const [timerMinutes, setTimerMinutes] = useState(null); // null = pas de chronomètre
   const [timeLeft, setTimeLeft] = useState(null);
   const [blocked, setBlocked] = useState(false);
+  const [basicMode, setBasicMode] = useState(false);
+  const fallbackIndexRef = useRef(0);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -921,10 +981,24 @@ function Simulator({ module, candidate, onBack }) {
     initialPromptRef.current = fullPrompt;
     const init = [{ role: "user", content: fullPrompt }];
     const reply = await callClaude(init);
-    setMessages([
-      { role: "user", content: fullPrompt },
-      { role: "assistant", content: reply },
-    ]);
+
+    if (reply) {
+      setMessages([
+        { role: "user", content: fullPrompt },
+        { role: "assistant", content: reply },
+      ]);
+    } else {
+      setBasicMode(true);
+      fallbackIndexRef.current = 0;
+      const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      setMessages([
+        { role: "user", content: fullPrompt },
+        {
+          role: "assistant",
+          content: `⚠️ Mode basique activé — l'assistant IA est momentanément indisponible. Voici des questions et des suggestions de réponse pré-construites, en attendant.\n\n${bank[0].q}`,
+        },
+      ]);
+    }
     if (timerMinutes) setTimeLeft(timerMinutes * 60);
     setLoading(false);
   };
@@ -942,8 +1016,40 @@ function Simulator({ module, candidate, onBack }) {
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
     setInput("");
+
+    // Mode basique : plus d'appel IA, on sert la banque de questions locale
+    if (basicMode) {
+      const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      const current = bank[fallbackIndexRef.current];
+      fallbackIndexRef.current += 1;
+      const next = bank[fallbackIndexRef.current];
+
+      let reply = current ? `💡 Suggestion de réponse : ${current.s}` : "";
+      reply += next
+        ? `\n\n➡️ ${next.q}`
+        : `\n\nCeci conclut cette simulation en mode basique. Réessaie plus tard pour une session complète avec feedback personnalisé par l'IA.`;
+
+      setMessages(p => [...p, { role: "assistant", content: reply }]);
+      setLoading(false);
+      return;
+    }
+
     const apiMsgs = newMsgs.map(m => ({ role: m.role, content: m.content }));
     const reply = await callClaude(apiMsgs);
+
+    if (!reply) {
+      // Échec IA en cours de simulation : bascule automatique, sans bloquer le candidat
+      setBasicMode(true);
+      fallbackIndexRef.current = 0;
+      const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      setMessages(p => [...p, {
+        role: "assistant",
+        content: `⚠️ Mode basique activé — l'assistant IA est momentanément indisponible. Voici des questions et des suggestions de réponse pré-construites, en attendant.\n\n${bank[0].q}`,
+      }]);
+      setLoading(false);
+      return;
+    }
+
     const starMatch = reply.match(/⭐+/);
     if (starMatch) {
       const stars = starMatch[0].length;
@@ -1294,6 +1400,17 @@ function Simulator({ module, candidate, onBack }) {
           }}>Quitter</button>
         </div>
       </div>
+
+      {basicMode && (
+        <div style={{
+          background: T.orFond, borderBottom: `1px solid ${T.or}44`,
+          padding: "8px 20px", textAlign: "center",
+          fontSize: "0.72rem", color: "#8A5A1E",
+          fontFamily: "'Space Mono', monospace",
+        }}>
+          ⚠️ Mode basique — questions et suggestions pré-construites (IA momentanément indisponible)
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{
