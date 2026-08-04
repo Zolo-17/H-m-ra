@@ -343,8 +343,27 @@ function Bubble({ msg }) {
 }
 
 // ── Landing Page ───────────────────────────────────────────────────────────
-function Landing({ onStart }) {
+function Landing({ onStart, candidate, onFindProfile }) {
   const [hovered, setHovered] = useState(null);
+  const [showLookup, setShowLookup] = useState(false);
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupStatus, setLookupStatus] = useState("idle"); // idle | searching | notfound | error
+
+  async function handleLookup(e) {
+    e.preventDefault();
+    setLookupStatus("searching");
+    try {
+      const res = await fetch(`/api/profile/lookup?phone=${encodeURIComponent(lookupPhone.trim())}`);
+      const data = await res.json();
+      if (data.found) {
+        onFindProfile({ email: data.email, phone: lookupPhone.trim() });
+      } else {
+        setLookupStatus("notfound");
+      }
+    } catch {
+      setLookupStatus("error");
+    }
+  }
 
   return (
     <div style={{
@@ -449,27 +468,101 @@ function Landing({ onStart }) {
           ))}
         </div>
 
-        <button
-          onClick={() => onStart("modules")}
-          style={{
-            background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
-            color: T.blanc,
-            border: "none",
-            padding: "16px 48px",
-            fontSize: "0.9rem",
-            fontWeight: 700,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            cursor: "pointer",
-            borderRadius: 2,
-            transition: "all 0.2s",
-            boxShadow: `0 4px 30px ${T.or}40`,
-          }}
-          onMouseEnter={e => e.currentTarget.style.boxShadow = `0 8px 40px ${T.or}60`}
-          onMouseLeave={e => e.currentTarget.style.boxShadow = `0 4px 30px ${T.or}40`}
-        >
-          Commencer la simulation →
-        </button>
+        {candidate ? (
+          <div style={{
+            display: "inline-block", background: T.charbon,
+            border: `1px solid ${T.bordure}`, borderRadius: 6,
+            padding: "16px 24px", marginBottom: 8, textAlign: "left",
+          }}>
+            <div style={{
+              fontSize: "0.65rem", color: T.or, letterSpacing: 1,
+              textTransform: "uppercase", marginBottom: 4,
+              fontFamily: "'Space Mono', monospace",
+            }}>Bon retour</div>
+            <div style={{ color: T.blanc, fontWeight: 700, marginBottom: 12 }}>
+              {candidate.email || candidate.phone}
+            </div>
+            <button
+              onClick={() => onStart("modules")}
+              style={{
+                background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
+                color: T.blanc, border: "none", padding: "12px 32px",
+                fontSize: "0.85rem", fontWeight: 700, letterSpacing: 1,
+                textTransform: "uppercase", cursor: "pointer", borderRadius: 2,
+              }}
+            >Continuer →</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => onStart("modules")}
+            style={{
+              background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
+              color: T.blanc,
+              border: "none",
+              padding: "16px 48px",
+              fontSize: "0.9rem",
+              fontWeight: 700,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              cursor: "pointer",
+              borderRadius: 2,
+              transition: "all 0.2s",
+              boxShadow: `0 4px 30px ${T.or}40`,
+            }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = `0 8px 40px ${T.or}60`}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = `0 4px 30px ${T.or}40`}
+          >
+            Commencer la simulation →
+          </button>
+        )}
+
+        {!candidate && (
+          <div style={{ marginTop: 14 }}>
+            {!showLookup ? (
+              <button
+                onClick={() => setShowLookup(true)}
+                style={{
+                  background: "none", border: "none", color: T.gris,
+                  fontSize: "0.78rem", textDecoration: "underline",
+                  cursor: "pointer", padding: 0,
+                }}
+              >Déjà inscrit ? Retrouve ton profil</button>
+            ) : (
+              <form onSubmit={handleLookup} style={{
+                display: "flex", gap: 8, justifyContent: "center",
+                flexWrap: "wrap", maxWidth: 340, margin: "0 auto",
+              }}>
+                <input
+                  type="tel"
+                  required
+                  value={lookupPhone}
+                  onChange={e => setLookupPhone(e.target.value)}
+                  placeholder="Ton numéro de téléphone"
+                  style={{
+                    padding: "8px 12px", background: T.graphite,
+                    border: `1px solid ${T.bordure}`, borderRadius: 4,
+                    color: T.blanc, fontSize: "0.8rem", flex: 1, minWidth: 180,
+                  }}
+                />
+                <button type="submit" disabled={lookupStatus === "searching"} style={{
+                  padding: "8px 16px", background: T.or, border: "none",
+                  borderRadius: 4, color: T.blanc, fontWeight: 700,
+                  fontSize: "0.78rem", cursor: "pointer",
+                }}>{lookupStatus === "searching" ? "…" : "Retrouver"}</button>
+              </form>
+            )}
+            {lookupStatus === "notfound" && (
+              <p style={{ color: "#C43E1C", fontSize: "0.75rem", marginTop: 8 }}>
+                Aucun profil trouvé avec ce numéro. Inscris-toi via "Commencer la simulation".
+              </p>
+            )}
+            {lookupStatus === "error" && (
+              <p style={{ color: "#C43E1C", fontSize: "0.75rem", marginTop: 8 }}>
+                Erreur de connexion, réessaie.
+              </p>
+            )}
+          </div>
+        )}
 
         <div style={{ marginTop: 18 }}>
           <a
@@ -687,39 +780,88 @@ function Simulator({ module, candidate, onBack }) {
   const textareaRef = useRef(null);
   const initialPromptRef = useRef("");
   const recognitionRef = useRef(null);
+  const shouldListenRef = useRef(false); // intention du candidat : continuer à dicter ou non
+  const baseTextRef = useRef("");        // texte déjà présent avant de commencer à dicter
+  const finalTranscriptRef = useRef(""); // texte confirmé accumulé pendant la dictée
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Reconnaissance vocale : dicte la réponse du candidat dans le champ de texte
-  function startListening() {
+  useEffect(() => {
+    return () => {
+      shouldListenRef.current = false;
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
+  // Reconnaissance vocale : dicte la réponse du candidat dans le champ de texte.
+  // Chrome coupe automatiquement l'écoute après quelques secondes de silence,
+  // même en mode "continuous" — on relance donc automatiquement tant que le
+  // candidat n'a pas explicitement cliqué sur "Arrêter".
+  function createRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("La reconnaissance vocale n'est pas supportée par ce navigateur. Utilise Chrome (ordinateur ou Android) pour cette fonctionnalité.");
-      return;
-    }
+    if (!SpeechRecognition) return null;
+
     const recognition = new SpeechRecognition();
     recognition.lang = "fr-FR";
     recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const chunk = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += chunk + " ";
+        } else {
+          interim += chunk;
+        }
       }
-      setInput(transcript);
+      const combined = (baseTextRef.current + " " + finalTranscriptRef.current + interim).trim();
+      setInput(combined);
     };
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
 
+    recognition.onerror = (event) => {
+      // "no-speech" survient souvent lors d'un silence normal entre deux phrases : pas une vraie erreur
+      if (event.error !== "no-speech") {
+        shouldListenRef.current = false;
+        setListening(false);
+      }
+    };
+
+    recognition.onend = () => {
+      if (shouldListenRef.current) {
+        // Le candidat n'a pas demandé l'arrêt : on relance sans perdre le fil
+        try {
+          recognition.start();
+        } catch {
+          setListening(false);
+        }
+      } else {
+        setListening(false);
+      }
+    };
+
+    return recognition;
+  }
+
+  function startListening() {
+    const recognition = createRecognition();
+    if (!recognition) {
+      alert("La reconnaissance vocale n'est pas supportée par ce navigateur. Utilise Chrome (ordinateur ou Android) pour cette fonctionnalité.");
+      return;
+    }
+    baseTextRef.current = input;
+    finalTranscriptRef.current = "";
     recognitionRef.current = recognition;
+    shouldListenRef.current = true;
     recognition.start();
     setListening(true);
   }
 
   function stopListening() {
+    shouldListenRef.current = false;
     recognitionRef.current?.stop();
     setListening(false);
   }
@@ -1422,7 +1564,14 @@ export default function App() {
     setPage(selectedModule ? "simulator" : "modules");
   };
 
-  if (page === "landing") return <Landing onStart={handleStart} />;
+  const handleFindProfile = (info) => {
+    localStorage.setItem("hemera_candidate", JSON.stringify(info));
+    setCandidate(info);
+  };
+
+  if (page === "landing") return (
+    <Landing onStart={handleStart} candidate={candidate} onFindProfile={handleFindProfile} />
+  );
   if (page === "register") return (
     <Register onRegistered={handleRegistered} onBack={() => setPage("landing")} />
   );
@@ -1441,5 +1590,4 @@ export default function App() {
   );
   return null;
 }
-
 
