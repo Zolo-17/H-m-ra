@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { jsPDF } from "jspdf";
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const T = {
@@ -634,6 +635,63 @@ function Simulator({ module, candidate, onBack }) {
 
   const avg = score.count > 0 ? (score.total / score.count).toFixed(1) : "—";
 
+  function generatePDF() {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 15;
+    const maxWidth = pageWidth - marginX * 2;
+    let y = 22;
+
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(20, 20, 20);
+    doc.text("Héméra — Rapport de simulation", marginX, y);
+    y += 10;
+
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(90, 90, 90);
+    doc.text(`Module : ${module.label}`, marginX, y); y += 6;
+    if (poste.trim()) { doc.text(`Poste visé : ${poste.trim()}`, marginX, y); y += 6; }
+    if (secteur.trim()) { doc.text(`Secteur : ${secteur.trim()}`, marginX, y); y += 6; }
+    if (candidate?.email) { doc.text(`Candidat : ${candidate.email}`, marginX, y); y += 6; }
+    doc.text(`Date : ${new Date().toLocaleDateString("fr-FR")}`, marginX, y); y += 6;
+    doc.setTextColor(180, 140, 30);
+    doc.setFont(undefined, "bold");
+    doc.text(`Score moyen : ${avg} / 5`, marginX, y); y += 10;
+
+    doc.setDrawColor(210, 210, 210);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+
+    const visibleMessages = messages.filter(
+      m => !(m.role === "user" && m.content === initialPromptRef.current)
+    );
+
+    doc.setFontSize(10.5);
+    visibleMessages.forEach(msg => {
+      const isRecruiter = msg.role === "assistant";
+      if (y > 275) { doc.addPage(); y = 20; }
+
+      doc.setFont(undefined, "bold");
+      doc.setTextColor(isRecruiter ? 150 : 30, isRecruiter ? 100 : 30, isRecruiter ? 30 : 30);
+      doc.text(isRecruiter ? "Recruteur :" : "Candidat :", marginX, y);
+      y += 6;
+
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(40, 40, 40);
+      const lines = doc.splitTextToSize(msg.content, maxWidth);
+      lines.forEach(line => {
+        if (y > 285) { doc.addPage(); y = 20; }
+        doc.text(line, marginX, y);
+        y += 5.5;
+      });
+      y += 5;
+    });
+
+    doc.save(`hemera-rapport-${module.id}-${Date.now()}.pdf`);
+  }
+
   if (blocked) {
     return (
       <div style={{
@@ -883,6 +941,17 @@ function Simulator({ module, candidate, onBack }) {
               fontWeight: 700,
             }}>{avg}</div>
           </div>
+          <button
+            onClick={generatePDF}
+            disabled={messages.length === 0}
+            style={{
+              background: "none", border: `1px solid ${T.or}`,
+              color: T.or, padding: "6px 12px",
+              fontSize: "0.7rem", cursor: messages.length === 0 ? "default" : "pointer",
+              letterSpacing: 1, textTransform: "uppercase",
+              borderRadius: 2, opacity: messages.length === 0 ? 0.4 : 1,
+            }}
+          >📄 Rapport PDF</button>
           <button onClick={onBack} style={{
             background: "none", border: `1px solid #2A2A2A`,
             color: T.gris, padding: "6px 12px",
