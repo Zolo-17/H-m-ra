@@ -1,18 +1,36 @@
 import { useState, useRef, useEffect } from "react";
 import { jsPDF } from "jspdf";
 
-// ── Design tokens ──────────────────────────────────────────────────────────
+// ── Design tokens ── Héméra, déesse de l'aube : de la nuit naît la lumière ──
 const T = {
-  noir:    "#0A0A0A",
-  charbon: "#141414",
-  graphite:"#1E1E1E",
-  or:      "#C9A84C",
-  orPale:  "#E8D5A3",
-  orFond:  "#2A2308",
-  blanc:   "#F5F5F0",
-  gris:    "#888880",
-  grisClair:"#CCCCCC",
+  // Fond : ivoire chaud, comme le premier jour qui se lève (plus de noir)
+  noir:    "#FBF1E1",
+  // Surface secondaire (nav, alternance) : sable doré
+  charbon: "#F5E6C8",
+  // Cartes / champs : ivoire clair
+  graphite:"#FFFCF5",
+  // Accent principal : braise ambrée — la couleur du soleil qui perce
+  or:      "#D9641E",
+  // Halo doré — points forts, dégradés
+  orPale:  "#F2A93C",
+  // Fond doux pour badges / encarts
+  orFond:  "#FBE3C4",
+  // Texte principal : encre brune chaude (jamais de noir pur)
+  blanc:   "#2B1B10",
+  // Texte secondaire
+  gris:    "#8A6F5C",
+  grisClair:"#5C4A3D",
+  // Résidu de nuit — contrastes profonds, ombres
+  nuit:    "#3B2145",
+  // Braise vive — alertes, urgence
+  braise:  "#C43E1C",
+  // Bordures chaudes
+  bordure: "#E8D2AC",
 };
+
+const FONT_DISPLAY = "'Fraunces', Georgia, serif";
+const FONT_BODY = "'Manrope', 'Segoe UI', system-ui, sans-serif";
+const FONT_MONO = "'Space Mono', 'Courier New', monospace";
 
 // ── System prompt ──────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `Tu es un coach expert en recrutement, spécialisé dans la préparation aux entretiens d'embauche pour les professionnels de la comptabilité, finance et gestion en Afrique francophone, particulièrement au Gabon. Tu maîtrises le SYSCOHADA révisé, la fiscalité gabonaise (TVA 18%, TPS 9.5%, IS 30%), les normes OHADA, et la sécurité sociale gabonaise (CNSS 2026: 18% patronale/5% salariale, plafond 1 500 000 FCFA; CNAMGS: 3.5%/1.5%).
@@ -50,7 +68,7 @@ const MODULES = [
     icon: "👥",
     desc: "Organisation, délégation, gestion des conflits, formation des juniors",
     questions: 10,
-    color: "#8B7355",
+    color: "#A8763E",
     prompt: `Module: MANAGEMENT. Présente-toi comme recruteur. Pose la première question sur l'organisation d'une équipe comptable.`,
   },
   {
@@ -59,7 +77,7 @@ const MODULES = [
     icon: "📊",
     desc: "SYSCOHADA Révisé, DSF, immobilisations, provisions, audit, normes IFRS, contrôle de gestion,  rapprochements bancaires",
     questions: 20,
-    color: "#6B8B6B",
+    color: "#6B8E5A",
     prompt: `Module: TECHNIQUE COMPTABLE ET AUDIT. Présente-toi comme recruteur. Pose la première question: "Quels logiciels comptables maîtrisez-vous et comment les avez-vous utilisés concrètement?"`,
   },
   {
@@ -68,7 +86,7 @@ const MODULES = [
     icon: "⚖️",
     desc: "SYSCOHADA révisé 2018, obligations, sanctions, états financiers",
     questions: 10,
-    color: "#7B6B8B",
+    color: "#8B5FA0",
     prompt: `Module: SYSCOHADA révisé 2018. Présente-toi comme recruteur. Pose la première question sur le cadre comptable OHADA au Gabon.`,
   },
   {
@@ -77,7 +95,7 @@ const MODULES = [
     icon: "🏛️",
     desc: "TVA 18%, TPS 9.5%, IS 30%, DSF, contrôles fiscaux, Digitax, loi des finances rectificative Gabon 2026",
     questions: 15,
-    color: "#8B4545",
+    color: "#C43E1C",
     prompt: `Module: FISCALITÉ GABONAISE. Présente-toi comme recruteur. Pose la première question sur les obligations fiscales d'une entreprise au Gabon.`,
   },
   {
@@ -86,7 +104,7 @@ const MODULES = [
     icon: "🏥",
     desc: "CNSS, CNAMGS, taux 2026, calculs, sanctions, contrôles",
     questions: 10,
-    color: "#456B8B",
+    color: "#3D7A8C",
     prompt: `Module: SÉCURITÉ SOCIALE. Présente-toi comme recruteur. Pose la première question sur les obligations sociales d'un employeur au Gabon.`,
   },
   {
@@ -150,19 +168,24 @@ async function callClaude(messages) {
 // ── Components ─────────────────────────────────────────────────────────────
 function Logo() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div
+      onClick={() => { window.location.href = "/"; }}
+      role="button"
+      title="Retour à l'accueil"
+      style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+    >
       <div style={{
         width: 36, height: 36,
-        background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
+        background: `radial-gradient(circle at 35% 30%, ${T.orPale}, ${T.or} 70%)`,
         borderRadius: "50%",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 18, fontWeight: 900, color: T.noir,
-        fontFamily: "Georgia, serif",
-        boxShadow: `0 0 20px ${T.or}40`,
+        fontSize: 18, fontWeight: 700, color: T.blanc,
+        fontFamily: "'Fraunces', Georgia, serif",
+        boxShadow: `0 0 4px ${T.orPale}, 0 0 18px ${T.or}88, 0 0 34px ${T.or}44`,
       }}>H</div>
       <div>
         <div style={{
-          fontFamily: "Georgia, serif",
+          fontFamily: "'Fraunces', Georgia, serif",
           fontSize: "1.1rem", fontWeight: 700,
           color: T.or, letterSpacing: 3,
           textTransform: "uppercase",
@@ -170,6 +193,7 @@ function Logo() {
         <div style={{
           fontSize: "0.6rem", color: T.gris,
           letterSpacing: 2, textTransform: "uppercase",
+          fontFamily: "'Space Mono', monospace",
         }}>Prépare · Brille · Réussis</div>
       </div>
     </div>
@@ -199,8 +223,8 @@ function Bubble({ msg }) {
           width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
           background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 700, color: T.noir,
-          fontFamily: "Georgia, serif",
+          fontSize: 13, fontWeight: 700, color: T.blanc,
+          fontFamily: "'Fraunces', Georgia, serif",
         }}>H</div>
       )}
       <div style={{ display: "flex", flexDirection: "column", maxWidth: "80%", alignItems: isUser ? "flex-end" : "flex-start" }}>
@@ -210,7 +234,7 @@ function Bubble({ msg }) {
             : T.graphite,
           border: isUser
             ? `1px solid ${T.or}44`
-            : `1px solid #2A2A2A`,
+            : `1px solid #E8D2AC`,
           borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
           padding: "12px 16px",
           color: T.blanc,
@@ -253,19 +277,31 @@ function Landing({ onStart }) {
       minHeight: "100vh",
       background: T.noir,
       color: T.blanc,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontFamily: "'Manrope', 'Segoe UI', system-ui, sans-serif",
       overflowX: "hidden",
+      position: "relative",
     }}>
+      {/* Halo d'aube — la lumière d'Héméra perçant derrière le titre */}
+      <div aria-hidden="true" style={{
+        position: "absolute", top: "-10%", left: "50%",
+        transform: "translateX(-50%)",
+        width: 900, height: 900, maxWidth: "140vw",
+        background: `radial-gradient(circle, ${T.orPale}55 0%, ${T.or}22 35%, transparent 70%)`,
+        pointerEvents: "none", zIndex: 0,
+      }} />
+
       {/* Nav */}
       <nav style={{
         padding: "20px 32px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid #1A1A1A`,
+        borderBottom: `1px solid #E8D2AC`,
+        position: "relative", zIndex: 1,
       }}>
         <Logo />
         <div style={{
           fontSize: "0.75rem", color: T.gris,
           letterSpacing: 1, textTransform: "uppercase",
+          fontFamily: "'Space Mono', monospace",
         }}>Gabon · OHADA · 2026</div>
       </nav>
 
@@ -274,6 +310,7 @@ function Landing({ onStart }) {
         padding: "80px 32px 60px",
         maxWidth: 900, margin: "0 auto",
         textAlign: "center",
+        position: "relative", zIndex: 1,
       }}>
         {/* Ornement */}
         <div style={{
@@ -290,7 +327,7 @@ function Landing({ onStart }) {
         </div>
 
         <h1 style={{
-          fontFamily: "Georgia, serif",
+          fontFamily: "'Fraunces', Georgia, serif",
           fontSize: "clamp(2.2rem, 5vw, 3.8rem)",
           fontWeight: 400,
           lineHeight: 1.2,
@@ -325,7 +362,7 @@ function Landing({ onStart }) {
           ].map(s => (
             <div key={s.l} style={{ textAlign: "center" }}>
               <div style={{
-                fontFamily: "Georgia, serif",
+                fontFamily: "'Fraunces', Georgia, serif",
                 fontSize: "2rem", fontWeight: 700,
                 color: T.or, lineHeight: 1,
               }}>{s.n}</div>
@@ -342,7 +379,7 @@ function Landing({ onStart }) {
           onClick={() => onStart("modules")}
           style={{
             background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
-            color: T.noir,
+            color: T.blanc,
             border: "none",
             padding: "16px 48px",
             fontSize: "0.9rem",
@@ -403,7 +440,7 @@ function Landing({ onStart }) {
               onMouseLeave={() => setHovered(null)}
               style={{
                 background: hovered === m.id ? T.graphite : T.charbon,
-                border: `1px solid ${hovered === m.id ? T.or + "44" : "#1E1E1E"}`,
+                border: `1px solid ${hovered === m.id ? T.or + "44" : "#EDD9B0"}`,
                 borderRadius: 4,
                 padding: "20px 20px",
                 cursor: "pointer",
@@ -432,7 +469,7 @@ function Landing({ onStart }) {
 
       {/* Footer */}
       <div style={{
-        borderTop: `1px solid #1A1A1A`,
+        borderTop: `1px solid #E8D2AC`,
         padding: "24px 32px",
         textAlign: "center",
       }}>
@@ -457,16 +494,16 @@ function ModuleSelect({ onSelect, onBack }) {
       minHeight: "100vh",
       background: T.noir,
       color: T.blanc,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontFamily: "'Manrope', 'Segoe UI', system-ui, sans-serif",
     }}>
       <nav style={{
         padding: "20px 32px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid #1A1A1A`,
+        borderBottom: `1px solid #E8D2AC`,
       }}>
         <Logo />
         <button onClick={onBack} style={{
-          background: "none", border: `1px solid #2A2A2A`,
+          background: "none", border: `1px solid #E8D2AC`,
           color: T.gris, padding: "8px 16px",
           fontSize: "0.75rem", cursor: "pointer",
           letterSpacing: 1, textTransform: "uppercase",
@@ -481,7 +518,7 @@ function ModuleSelect({ onSelect, onBack }) {
           marginBottom: 12,
         }}>Choisissez votre module</div>
         <h2 style={{
-          fontFamily: "Georgia, serif",
+          fontFamily: "'Fraunces', Georgia, serif",
           fontSize: "2rem", fontWeight: 400,
           color: T.blanc, margin: "0 0 48px",
         }}>
@@ -501,7 +538,7 @@ function ModuleSelect({ onSelect, onBack }) {
               onMouseLeave={() => setHovered(null)}
               style={{
                 background: hovered === m.id ? T.graphite : T.charbon,
-                border: `1px solid ${hovered === m.id ? T.or + "66" : "#222"}`,
+                border: `1px solid ${hovered === m.id ? T.or + "66" : "#E8D2AC"}`,
                 borderRadius: 4,
                 padding: "24px",
                 cursor: "pointer",
@@ -756,11 +793,11 @@ function Simulator({ module, candidate, onBack }) {
       <div style={{
         minHeight: "100vh", background: T.noir, display: "flex",
         alignItems: "center", justifyContent: "center", padding: 24,
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        fontFamily: "'Manrope', 'Segoe UI', system-ui, sans-serif",
       }}>
         <div style={{ maxWidth: 400, textAlign: "center" }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
-          <h2 style={{ color: T.or, fontFamily: "Georgia, serif", fontSize: "1.3rem", marginBottom: 12 }}>
+          <h2 style={{ color: T.or, fontFamily: "'Fraunces', Georgia, serif", fontSize: "1.3rem", marginBottom: 12 }}>
             Essai gratuit terminé
           </h2>
           <p style={{ color: T.gris, fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 24 }}>
@@ -769,12 +806,12 @@ function Simulator({ module, candidate, onBack }) {
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
             <button onClick={onBack} style={{
-              padding: "12px 20px", background: "none", border: "1px solid #333",
+              padding: "12px 20px", background: "none", border: "1px solid #E8D2AC",
               borderRadius: 4, color: T.gris, cursor: "pointer", fontSize: "0.85rem",
             }}>← Retour</button>
             <a href="/paiement" style={{
               padding: "12px 20px", background: T.or, border: "none",
-              borderRadius: 4, color: T.noir, fontWeight: 700, cursor: "pointer",
+              borderRadius: 4, color: T.blanc, fontWeight: 700, cursor: "pointer",
               fontSize: "0.85rem", textDecoration: "none",
             }}>Débloquer l'accès →</a>
           </div>
@@ -788,12 +825,12 @@ function Simulator({ module, candidate, onBack }) {
       <div style={{
         minHeight: "100vh", background: T.noir,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        fontFamily: "'Manrope', 'Segoe UI', system-ui, sans-serif",
         padding: 24,
       }}>
         <div style={{
           background: T.charbon,
-          border: `1px solid #222`,
+          border: `1px solid #E8D2AC`,
           borderRadius: 6,
           padding: "48px 40px",
           maxWidth: 480, width: "100%",
@@ -806,7 +843,7 @@ function Simulator({ module, candidate, onBack }) {
             marginBottom: 12,
           }}>Module sélectionné</div>
           <h2 style={{
-            fontFamily: "Georgia, serif",
+            fontFamily: "'Fraunces', Georgia, serif",
             fontSize: "1.8rem", fontWeight: 400,
             color: T.blanc, margin: "0 0 16px",
           }}>{module.label}</h2>
@@ -829,7 +866,7 @@ function Simulator({ module, candidate, onBack }) {
             ].map(s => (
               <div key={s.l} style={{ textAlign: "center" }}>
                 <div style={{
-                  fontFamily: "Georgia, serif",
+                  fontFamily: "'Fraunces', Georgia, serif",
                   fontSize: "1.5rem", fontWeight: 700,
                   color: T.or,
                 }}>{s.n}</div>
@@ -877,7 +914,7 @@ function Simulator({ module, candidate, onBack }) {
               placeholder="Ex : Chef Comptable"
               style={{
                 width: "100%", padding: "10px 12px", marginBottom: 16,
-                background: T.graphite, border: `1px solid #2A2A2A`,
+                background: T.graphite, border: `1px solid #E8D2AC`,
                 borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
                 outline: "none", boxSizing: "border-box", fontFamily: "inherit",
               }}
@@ -894,7 +931,7 @@ function Simulator({ module, candidate, onBack }) {
               placeholder="Ex : Hôtellerie, BTP, Banque..."
               style={{
                 width: "100%", padding: "10px 12px", marginBottom: 20,
-                background: T.graphite, border: `1px solid #2A2A2A`,
+                background: T.graphite, border: `1px solid #E8D2AC`,
                 borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
                 outline: "none", boxSizing: "border-box", fontFamily: "inherit",
               }}
@@ -913,7 +950,7 @@ function Simulator({ module, candidate, onBack }) {
                   style={{
                     padding: "8px 14px",
                     background: timerMinutes === opt.value ? T.or : "none",
-                    border: `1px solid ${timerMinutes === opt.value ? T.or : "#2A2A2A"}`,
+                    border: `1px solid ${timerMinutes === opt.value ? T.or : "#E8D2AC"}`,
                     borderRadius: 20,
                     color: timerMinutes === opt.value ? T.noir : T.gris,
                     fontSize: "0.7rem", cursor: "pointer",
@@ -929,7 +966,7 @@ function Simulator({ module, candidate, onBack }) {
             <button onClick={onBack} style={{
               flex: 1, padding: "12px",
               background: "none",
-              border: `1px solid #2A2A2A`,
+              border: `1px solid #E8D2AC`,
               color: T.gris, cursor: "pointer",
               fontSize: "0.8rem", borderRadius: 2,
               letterSpacing: 1, textTransform: "uppercase",
@@ -937,7 +974,7 @@ function Simulator({ module, candidate, onBack }) {
             <button onClick={start} style={{
               flex: 2, padding: "12px",
               background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
-              border: "none", color: T.noir,
+              border: "none", color: T.blanc,
               cursor: "pointer", fontSize: "0.85rem",
               fontWeight: 700, borderRadius: 2,
               letterSpacing: 2, textTransform: "uppercase",
@@ -953,19 +990,19 @@ function Simulator({ module, candidate, onBack }) {
     <div style={{
       height: "100vh", display: "flex", flexDirection: "column",
       background: T.noir,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontFamily: "'Manrope', 'Segoe UI', system-ui, sans-serif",
     }}>
       {/* Header */}
       <div style={{
         background: T.charbon,
-        borderBottom: `1px solid #1E1E1E`,
+        borderBottom: `1px solid #EDD9B0`,
         padding: "12px 20px",
         display: "flex", alignItems: "center", gap: 16,
         flexShrink: 0,
       }}>
         <Logo />
         <div style={{
-          width: 1, height: 30, background: "#2A2A2A",
+          width: 1, height: 30, background: "#E8D2AC",
         }} />
         <div style={{ flex: 1 }}>
           <div style={{
@@ -981,11 +1018,12 @@ function Simulator({ module, candidate, onBack }) {
               <div style={{
                 fontSize: "0.6rem", color: T.gris,
                 letterSpacing: 1, textTransform: "uppercase",
+                fontFamily: "'Space Mono', monospace",
               }}>Temps</div>
               <div style={{
-                fontFamily: "Georgia, serif",
+                fontFamily: "'Space Mono', monospace",
                 fontSize: "1.1rem", fontWeight: 700,
-                color: (timeLeft !== null && timeLeft <= 10) ? "#D9534F" : T.or,
+                color: (timeLeft !== null && timeLeft <= 10) ? "#C43E1C" : T.or,
               }}>{formatTime(timeLeft)}</div>
             </div>
           )}
@@ -993,9 +1031,10 @@ function Simulator({ module, candidate, onBack }) {
             <div style={{
               fontSize: "0.6rem", color: T.gris,
               letterSpacing: 1, textTransform: "uppercase",
+              fontFamily: "'Space Mono', monospace",
             }}>Moyenne</div>
             <div style={{
-              fontFamily: "Georgia, serif",
+              fontFamily: "'Space Mono', monospace",
               fontSize: "1.1rem", color: T.or,
               fontWeight: 700,
             }}>{avg}</div>
@@ -1012,7 +1051,7 @@ function Simulator({ module, candidate, onBack }) {
             }}
           >📄 Rapport PDF</button>
           <button onClick={onBack} style={{
-            background: "none", border: `1px solid #2A2A2A`,
+            background: "none", border: `1px solid #E8D2AC`,
             color: T.gris, padding: "6px 12px",
             fontSize: "0.7rem", cursor: "pointer",
             letterSpacing: 1, textTransform: "uppercase",
@@ -1040,12 +1079,12 @@ function Simulator({ module, candidate, onBack }) {
               width: 32, height: 32, borderRadius: "50%",
               background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontWeight: 700, color: T.noir,
-              fontFamily: "Georgia, serif", flexShrink: 0,
+              fontSize: 13, fontWeight: 700, color: T.blanc,
+              fontFamily: "'Fraunces', Georgia, serif", flexShrink: 0,
             }}>H</div>
             <div style={{
               background: T.graphite,
-              border: `1px solid #2A2A2A`,
+              border: `1px solid #E8D2AC`,
               borderRadius: "18px 18px 18px 4px",
               padding: "12px 16px",
               display: "flex", gap: 5, alignItems: "center",
@@ -1068,7 +1107,7 @@ function Simulator({ module, candidate, onBack }) {
       {/* Input */}
       <div style={{
         background: T.charbon,
-        borderTop: `1px solid #1E1E1E`,
+        borderTop: `1px solid #EDD9B0`,
         padding: "16px 20px",
         display: "flex", gap: 12, alignItems: "flex-end",
         flexShrink: 0,
@@ -1083,7 +1122,7 @@ function Simulator({ module, candidate, onBack }) {
           style={{
             flex: 1,
             background: T.graphite,
-            border: `1px solid #2A2A2A`,
+            border: `1px solid #E8D2AC`,
             borderRadius: 4,
             padding: "12px 14px",
             color: T.blanc,
@@ -1095,7 +1134,7 @@ function Simulator({ module, candidate, onBack }) {
             transition: "border-color 0.2s",
           }}
           onFocus={e => e.target.style.borderColor = T.or + "66"}
-          onBlur={e => e.target.style.borderColor = "#2A2A2A"}
+          onBlur={e => e.target.style.borderColor = "#E8D2AC"}
         />
         <button
           onClick={listening ? stopListening : startListening}
@@ -1103,8 +1142,8 @@ function Simulator({ module, candidate, onBack }) {
           title={listening ? "Arrêter la dictée" : "Dicter ma réponse au micro"}
           style={{
             padding: "12px 16px",
-            background: listening ? "#D9534F" : T.graphite,
-            border: `1px solid ${listening ? "#D9534F" : "#2A2A2A"}`,
+            background: listening ? "#C43E1C" : T.graphite,
+            border: `1px solid ${listening ? "#C43E1C" : "#E8D2AC"}`,
             borderRadius: 4,
             color: listening ? "#fff" : T.gris,
             fontSize: "1.1rem",
@@ -1121,7 +1160,7 @@ function Simulator({ module, candidate, onBack }) {
           style={{
             padding: "12px 20px",
             background: loading || !input.trim()
-              ? "#222"
+              ? "#EDD9B0"
               : `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
             border: "none",
             borderRadius: 4,
@@ -1147,11 +1186,11 @@ function Simulator({ module, candidate, onBack }) {
           0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.5); }
           50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
         }
-        textarea::placeholder { color: #555; }
+        textarea::placeholder { color: #A88B6F; }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: ${T.noir}; }
-        ::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: #E8D2AC; border-radius: 2px; }
       `}</style>
     </div>
   );
@@ -1187,7 +1226,7 @@ function Register({ onRegistered, onBack }) {
       <div style={{ maxWidth: 400, width: "100%" }}>
         <div style={{ fontSize: 40, textAlign: "center", marginBottom: 16 }}>🔑</div>
         <h1 style={{
-          color: T.or, fontFamily: "Georgia, serif", fontSize: "1.4rem",
+          color: T.or, fontFamily: "'Fraunces', Georgia, serif", fontSize: "1.4rem",
           textAlign: "center", marginBottom: 8,
         }}>
           Avant de commencer
@@ -1209,7 +1248,7 @@ function Register({ onRegistered, onBack }) {
             placeholder="toi@exemple.com"
             style={{
               width: "100%", padding: "10px 12px", marginBottom: 16,
-              background: T.graphite, border: "1px solid #2A2A2A",
+              background: T.graphite, border: "1px solid #E8D2AC",
               borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
               outline: "none", boxSizing: "border-box", fontFamily: "inherit",
             }}
@@ -1226,17 +1265,17 @@ function Register({ onRegistered, onBack }) {
             placeholder="Ex : 077037005"
             style={{
               width: "100%", padding: "10px 12px", marginBottom: 8,
-              background: T.graphite, border: "1px solid #2A2A2A",
+              background: T.graphite, border: "1px solid #E8D2AC",
               borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
               outline: "none", boxSizing: "border-box", fontFamily: "inherit",
             }}
           />
-          <p style={{ color: "#666", fontSize: "0.7rem", marginBottom: 20 }}>
+          <p style={{ color: "#A88B6F", fontSize: "0.7rem", marginBottom: 20 }}>
             Utilise le même numéro que celui utilisé pour ton paiement Mobile Money.
           </p>
 
           {error && (
-            <p style={{ color: "#D9534F", fontSize: "0.8rem", marginBottom: 12 }}>{error}</p>
+            <p style={{ color: "#C43E1C", fontSize: "0.8rem", marginBottom: 12 }}>{error}</p>
           )}
 
           <div style={{ display: "flex", gap: 12 }}>
@@ -1244,7 +1283,7 @@ function Register({ onRegistered, onBack }) {
               type="button"
               onClick={onBack}
               style={{
-                padding: "12px 20px", background: "none", border: "1px solid #333",
+                padding: "12px 20px", background: "none", border: "1px solid #E8D2AC",
                 borderRadius: 4, color: T.gris, cursor: "pointer", fontSize: "0.85rem",
               }}
             >← Retour</button>
@@ -1252,7 +1291,7 @@ function Register({ onRegistered, onBack }) {
               type="submit"
               style={{
                 flex: 1, padding: "12px 20px", background: T.or, border: "none",
-                borderRadius: 4, color: T.noir, fontWeight: 700, cursor: "pointer", fontSize: "0.85rem",
+                borderRadius: 4, color: T.blanc, fontWeight: 700, cursor: "pointer", fontSize: "0.85rem",
               }}
             >Continuer →</button>
           </div>
