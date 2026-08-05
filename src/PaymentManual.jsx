@@ -2,9 +2,20 @@ import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 const OFFERS = [
-  { code: "full_week", label: "Accès total — 7 jours", price: 2000 },
-  { code: "module_month", label: "1 module — 1 mois", price: 3500 },
-  { code: "full_month", label: "Accès total — 1 mois", price: 10000 },
+  { code: "full_week", label: "Accès total — 7 jours", price: 2000, scope: "full" },
+  { code: "module_month", label: "1 module — 1 mois", price: 3500, scope: "module" },
+  { code: "full_month", label: "Accès total — 1 mois", price: 10000, scope: "full" },
+];
+
+// Modules réellement vendables à l'unité (le module "complet" n'est accessible
+// qu'en accès total, il ne fait pas partie de l'offre "1 module").
+const MODULE_OPTIONS = [
+  { id: "personnalite", label: "Personnalité & Motivation" },
+  { id: "management", label: "Management d'équipe" },
+  { id: "technique", label: "Technique Comptable et audit" },
+  { id: "OHADA", label: "Réglementation OHADA" },
+  { id: "fiscalite", label: "Fiscalité Gabonaise" },
+  { id: "social", label: "Sécurité Sociale" },
 ];
 
 const METHODS = [
@@ -12,11 +23,16 @@ const METHODS = [
   { id: "moov_money", label: "Moov Money", number: "062157318", ussd: "*555#" },
 ];
 
-const T = { or: "#C9A84C", noir: "#0A0A0A", graphite: "#1E1E1E", gris: "#8A8A8A", blanc: "#F5F5F0" };
+const T = {
+  noir: "#FBF1E1", charbon: "#F5E6C8", graphite: "#FFFCF5",
+  or: "#D9641E", orPale: "#F2A93C", orFond: "#FBE3C4",
+  blanc: "#2B1B10", gris: "#8A6F5C", bordure: "#E8D2AC", braise: "#C43E1C",
+};
 
 export default function PaymentManual() {
   const [method, setMethod] = useState(METHODS[0]);
   const [offerCode, setOfferCode] = useState(OFFERS[0].code);
+  const [moduleSlug, setModuleSlug] = useState(MODULE_OPTIONS[0].id);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -37,6 +53,9 @@ export default function PaymentManual() {
     }
   }, []);
 
+  const selectedOffer = OFFERS.find(o => o.code === offerCode);
+  const isModuleOffer = selectedOffer.scope === "module";
+
   async function handleSubmit(e) {
     e.preventDefault();
     setStatus("sending");
@@ -50,6 +69,7 @@ export default function PaymentManual() {
           phone,
           method: method.id,
           offerCode,
+          moduleSlug: isModuleOffer ? moduleSlug : null,
           transactionReference: reference,
         }),
       });
@@ -64,7 +84,7 @@ export default function PaymentManual() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <h2 style={{ color: T.or, fontFamily: "Georgia, serif" }}>Demande envoyée ✅</h2>
+          <h2 style={{ color: T.or, fontFamily: "'Fraunces', Georgia, serif" }}>Demande envoyée ✅</h2>
           <p style={{ color: T.gris, lineHeight: 1.6 }}>
             Ton accès sera activé dès que ton paiement sera vérifié —
             généralement sous quelques heures. Un email de confirmation
@@ -76,13 +96,10 @@ export default function PaymentManual() {
     );
   }
 
-
-  const selectedOffer = OFFERS.find(o => o.code === offerCode);
-
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        <h1 style={{ color: T.or, fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: 4 }}>
+        <h1 style={{ color: T.or, fontFamily: "'Fraunces', Georgia, serif", fontSize: "1.6rem", marginBottom: 4 }}>
           Payer par Mobile Money
         </h1>
         <p style={{ color: T.gris, fontSize: "0.85rem", marginBottom: 20 }}>
@@ -98,8 +115,8 @@ export default function PaymentManual() {
               style={{
                 flex: 1, padding: 12, borderRadius: 6,
                 background: method.id === m.id ? T.or : "transparent",
-                color: method.id === m.id ? T.noir : T.blanc,
-                border: `1px solid ${method.id === m.id ? T.or : "#333"}`,
+                color: method.id === m.id ? "#fff" : T.blanc,
+                border: `1px solid ${method.id === m.id ? T.or : T.bordure}`,
                 cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
               }}
             >
@@ -108,7 +125,7 @@ export default function PaymentManual() {
           ))}
         </div>
 
-        <div style={{ textAlign: "center", background: "#fff", padding: 16, borderRadius: 8, marginBottom: 12 }}>
+        <div style={{ textAlign: "center", background: "#fff", padding: 16, borderRadius: 8, marginBottom: 12, border: `1px solid ${T.bordure}` }}>
           <QRCodeSVG value={method.number} size={170} />
         </div>
         <p style={{ textAlign: "center", color: T.blanc, fontSize: "1.5rem", fontWeight: 700, letterSpacing: 2, margin: "8px 0" }}>
@@ -130,6 +147,21 @@ export default function PaymentManual() {
               </option>
             ))}
           </select>
+
+          {isModuleOffer && (
+            <>
+              <label style={labelStyle}>Module choisi</label>
+              <select value={moduleSlug} onChange={e => setModuleSlug(e.target.value)} style={inputStyle}>
+                {MODULE_OPTIONS.map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+              <p style={{ color: T.braise, fontSize: "0.72rem", marginTop: 6, lineHeight: 1.5 }}>
+                Cette offre donne accès uniquement au module choisi ci-dessus. Les autres modules
+                resteront verrouillés — choisis « Accès total » pour tout débloquer.
+              </p>
+            </>
+          )}
 
           <label style={labelStyle}>Nom complet</label>
           <input required value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
@@ -163,7 +195,7 @@ export default function PaymentManual() {
           </button>
 
           {status === "error" && (
-            <p style={{ color: "#D9534F", fontSize: "0.8rem", marginTop: 10 }}>
+            <p style={{ color: T.braise, fontSize: "0.8rem", marginTop: 10 }}>
               Une erreur est survenue. Réessaie dans un instant.
             </p>
           )}
@@ -175,7 +207,7 @@ export default function PaymentManual() {
 
 const pageStyle = {
   minHeight: "100vh", background: T.noir, display: "flex",
-  justifyContent: "center", padding: "40px 16px", fontFamily: "system-ui, sans-serif",
+  justifyContent: "center", padding: "40px 16px", fontFamily: "'Manrope', system-ui, sans-serif",
 };
 const cardStyle = { maxWidth: 420, width: "100%" };
 const labelStyle = {
@@ -183,10 +215,10 @@ const labelStyle = {
   letterSpacing: 1, margin: "14px 0 6px",
 };
 const inputStyle = {
-  width: "100%", padding: 10, background: T.graphite, border: "1px solid #2A2A2A",
+  width: "100%", padding: 10, background: T.graphite, border: `1px solid ${T.bordure}`,
   borderRadius: 4, color: T.blanc, boxSizing: "border-box", fontSize: "0.9rem",
 };
 const submitStyle = {
   width: "100%", marginTop: 24, padding: 14, background: T.or, border: "none",
-  borderRadius: 4, color: T.noir, fontWeight: 700, cursor: "pointer", fontSize: "0.9rem",
+  borderRadius: 4, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem",
 };
