@@ -131,6 +131,7 @@ export default async function handler(req, res) {
         user_id: user.id,
         payment_id: payment.id,
         scope: offer.scope,
+        module_slug: offer.scope === "module" ? (request.module_slug || null) : null,
         expires_at: expiresAt,
         status: "active",
       });
@@ -146,12 +147,15 @@ export default async function handler(req, res) {
       const candidateEmail = request.email || user.email;
       if (candidateEmail) {
         const expiresDate = new Date(expiresAt).toLocaleDateString("fr-FR");
+        const accessLine = offer.scope === "module" && request.module_slug
+          ? `ton accès au module "${request.module_slug}" est maintenant actif jusqu'au ${expiresDate}.`
+          : `ton accès complet est maintenant actif jusqu'au ${expiresDate}.`;
         await sendEmail({
           to: candidateEmail,
           subject: "Héméra — Ton accès est activé ✅",
           text: `Bonjour ${request.full_name},
 
-Bonne nouvelle : ton paiement a été vérifié et ton accès est maintenant actif jusqu'au ${expiresDate}.
+Bonne nouvelle : ton paiement a été vérifié et ${accessLine}
 
 Tu peux te reconnecter dès maintenant sur Héméra et commencer tes simulations d'entretien.
 
