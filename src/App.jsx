@@ -162,13 +162,13 @@ function speakText(text) {
 // propre backend (/api/interview/chat), qui lui, détient la clé en sécurité.
 // Renvoie null en cas d'échec (au lieu d'un texte d'erreur trompeur), pour
 // permettre au Simulator de basculer proprement en mode basique.
-async function callClaude(messages) {
+async function callClaude(messages, extraSystem = "") {
   try {
     const res = await fetch("/api/interview/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + extraSystem,
         messages,
       }),
     });
@@ -956,6 +956,9 @@ function Simulator({ module, candidate, onBack }) {
   const [basicMode, setBasicMode] = useState(false);
   const fallbackIndexRef = useRef(0);
   const attemptsRef = useRef(0);
+  const answeredCountRef = useRef(0); // nombre de réponses déjà données par le candidat
+  const basicScoreRef = useRef({ totalStars: 0, count: 0 }); // pour le score en mode secours
+  const sessionLength = Math.min(module.questions, module.id === "complet" ? 10 : 8);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -1155,7 +1158,8 @@ function Simulator({ module, candidate, onBack }) {
     // Mode basique : plus d'appel IA, on sert la banque de questions locale.
     // Le passage à la question suivante est conditionné à la présence des
     // mots-clés attendus dans la réponse du candidat — comme le ferait un
-    // vrai recruteur qui attend des éléments précis.
+    // vrai recruteur qui attend des éléments précis. Chaque réponse validée
+    // reçoit une note en étoiles, et un bilan final s'affiche à la fin.
     if (basicMode) {
       const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
       const current = bank[fallbackIndexRef.current];
@@ -1170,23 +1174,52 @@ function Simulator({ module, candidate, onBack }) {
       const missing = keywords.filter(k => !matched.includes(k));
       const passed = keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2);
 
+      function closeBasicInterview() {
+        const avgStars = basicScoreRef.current.count > 0
+          ? basicScoreRef.current.totalStars / basicScoreRef.current.count
+          : 3;
+        const rounded = Math.max(1, Math.min(5, Math.round(avgStars)));
+        const strong = rounded >= 4;
+        return `\n\n📊 ÉVALUATION FINALE\nNote globale : ${rounded}/5 ${"⭐".repeat(rounded)}${"☆".repeat(5 - rounded)}\n\n✅ Points forts : ${strong ? "vous avez mentionné la majorité des éléments attendus dans vos réponses, avec un niveau de précision satisfaisant." : "vous avez une bonne base, avec quelques réponses solides et bien structurées."}\n\n⚠️ Points à améliorer : ${strong ? "continuez à structurer vos réponses avec des exemples concrets et chiffrés pour renforcer encore leur impact." : "plusieurs réponses gagneraient à intégrer davantage les termes techniques et références réglementaires attendus sur ce module."}\n\n🎯 Conseil pour le module "${module.label}" : relisez les points clés de chaque question de ce module et entraînez-vous à les reformuler naturellement à l'oral, comme devant un vrai recruteur.`;
+      }
+
       let reply = "";
       if (passed) {
         attemptsRef.current = 0;
-        reply = matched.length > 0
-          ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.`
-          : "Réponse notée.";
-        fallbackIndexRef.current += 1;
-        const next = bank[fallbackIndexRef.current];
-        reply += next ? `\n\n${next.q}` : "\n\nCeci conclut cet entretien. Merci pour votre participation.";
+        const stars = keywords.length === 0
+          ? 5
+          : Math.max(1, Math.min(5, Math.ceil((matched.length / keywords.length) * 5)));
+        basicScoreRef.current.totalStars += stars;
+        basicScoreRef.current.count += 1;
+        answeredCountRef.current += 1;
+
+        reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\n${matched.length > 0 ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.` : "Réponse notée."}`;
+
+        const next = bank[fallbackIndexRef.current + 1];
+        if (next && answeredCountRef.current < sessionLength) {
+          fallbackIndexRef.current += 1;
+          reply += `\n\n${next.q}`;
+        } else {
+          reply += closeBasicInterview();
+        }
       } else {
         attemptsRef.current += 1;
         if (attemptsRef.current >= 2) {
-          reply = `Voici une réponse plus complète pour vous aider : ${current.s}`;
+          const stars = 2;
+          basicScoreRef.current.totalStars += stars;
+          basicScoreRef.current.count += 1;
+          answeredCountRef.current += 1;
           attemptsRef.current = 0;
-          fallbackIndexRef.current += 1;
-          const next = bank[fallbackIndexRef.current];
-          reply += next ? `\n\n${next.q}` : "\n\nCeci conclut cet entretien. Merci pour votre participation.";
+
+          reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\nVoici une réponse plus complète pour vous aider : ${current.s}`;
+
+          const next = bank[fallbackIndexRef.current + 1];
+          if (next && answeredCountRef.current < sessionLength) {
+            fallbackIndexRef.current += 1;
+            reply += `\n\n${next.q}`;
+          } else {
+            reply += closeBasicInterview();
+          }
         } else {
           reply = `Votre réponse gagnerait à être complétée. Pensez à mentionner : ${missing.join(", ")}.\n\nSouhaitez-vous préciser votre réponse ?`;
         }
@@ -1198,7 +1231,11 @@ function Simulator({ module, candidate, onBack }) {
     }
 
     const apiMsgs = newMsgs.map(m => ({ role: m.role, content: m.content }));
-    const reply = await callClaude(apiMsgs);
+    const isFinalAnswer = answeredCountRef.current + 1 >= sessionLength;
+    const closingInstruction = isFinalAnswer
+      ? `\n\nINSTRUCTION IMPORTANTE : le candidat vient de donner sa dernière réponse pour ce module. Après avoir évalué cette réponse normalement (⭐ note, ✅ points forts, ⚠️ points à améliorer, 💬 reformulation), NE POSE PLUS AUCUNE QUESTION. Conclus immédiatement par une évaluation finale, sous EXACTEMENT ce format :\n\n📊 ÉVALUATION FINALE\nNote globale : X/5 ⭐ (moyenne réelle et honnête des notes données durant tout l'entretien)\n\n✅ Points forts : (2 à 3 points concrets observés sur l'ensemble de l'entretien)\n\n⚠️ Points à améliorer : (2 à 3 points concrets et actionnables)\n\n🎯 Conseils pour le module "${module.label}" : (conseils précis, en lien avec les attentes réelles d'un recruteur sur ce sujet au Gabon)`
+      : "";
+    const reply = await callClaude(apiMsgs, closingInstruction);
 
     if (!reply) {
       // Échec IA en cours de simulation : bascule automatique et invisible pour le candidat
@@ -1213,6 +1250,7 @@ function Simulator({ module, candidate, onBack }) {
       return;
     }
 
+    answeredCountRef.current += 1;
     const starMatch = reply.match(/⭐+/);
     if (starMatch) {
       const stars = starMatch[0].length;
