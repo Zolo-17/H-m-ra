@@ -467,6 +467,15 @@ function Landing({ onStart, candidate, onFindProfile }) {
   const [showLookup, setShowLookup] = useState(false);
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupStatus, setLookupStatus] = useState("idle"); // idle | searching | notfound | error
+  const [accessInfo, setAccessInfo] = useState(null); // { scope, moduleSlug } | null
+
+  useEffect(() => {
+    if (!candidate?.phone) { setAccessInfo(null); return; }
+    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`)
+      .then(r => r.json())
+      .then(data => setAccessInfo(data.hasActiveAccess ? data : null))
+      .catch(() => setAccessInfo(null));
+  }, [candidate]);
 
   async function handleLookup(e) {
     e.preventDefault();
@@ -598,18 +607,35 @@ function Landing({ onStart, candidate, onFindProfile }) {
               textTransform: "uppercase", marginBottom: 4,
               fontFamily: "'Space Mono', monospace",
             }}>Bon retour</div>
-            <div style={{ color: T.blanc, fontWeight: 700, marginBottom: 12 }}>
+            <div style={{ color: T.blanc, fontWeight: 700, marginBottom: 4 }}>
               {candidate.email || candidate.phone}
             </div>
-            <button
-              onClick={() => onStart("modules")}
-              style={{
-                background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
-                color: T.blanc, border: "none", padding: "12px 32px",
-                fontSize: "0.85rem", fontWeight: 700, letterSpacing: 1,
-                textTransform: "uppercase", cursor: "pointer", borderRadius: 2,
-              }}
-            >Continuer →</button>
+            {accessInfo?.scope === "full" && (
+              <div style={{ color: "#4A7B4A", fontSize: "0.72rem", marginBottom: 12 }}>
+                ✅ Accès complet actif
+              </div>
+            )}
+            {accessInfo?.scope === "module" && (
+              <div style={{ color: T.gris, fontSize: "0.72rem", marginBottom: 12 }}>
+                🔓 Accès actif — module "{accessInfo.moduleSlug}" uniquement
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => onStart("modules")}
+                style={{
+                  background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
+                  color: T.blanc, border: "none", padding: "12px 32px",
+                  fontSize: "0.85rem", fontWeight: 700, letterSpacing: 1,
+                  textTransform: "uppercase", cursor: "pointer", borderRadius: 2,
+                }}
+              >Continuer →</button>
+              {accessInfo?.scope === "module" && (
+                <a href="/paiement" style={{ color: T.or, fontSize: "0.75rem", textDecoration: "underline" }}>
+                  Débloquer l'accès complet
+                </a>
+              )}
+            </div>
           </div>
         ) : (
           <button
@@ -683,17 +709,19 @@ function Landing({ onStart, candidate, onFindProfile }) {
           </div>
         )}
 
-        <div style={{ marginTop: 18 }}>
-          <a
-            href="/paiement"
-            style={{
-              color: T.gris, fontSize: "0.78rem",
-              textDecoration: "underline", cursor: "pointer",
-            }}
-          >
-            Débloquer l'accès complet — Mobile Money
-          </a>
-        </div>
+        {accessInfo?.scope !== "full" && (
+          <div style={{ marginTop: 18 }}>
+            <a
+              href="/paiement"
+              style={{
+                color: T.gris, fontSize: "0.78rem",
+                textDecoration: "underline", cursor: "pointer",
+              }}
+            >
+              Débloquer l'accès complet — Mobile Money
+            </a>
+          </div>
+        )}
 
         <div style={{
           width: 1, height: 60,
@@ -778,8 +806,17 @@ function Landing({ onStart, candidate, onFindProfile }) {
 }
 
 // ── Module Selection ───────────────────────────────────────────────────────
-function ModuleSelect({ onSelect, onBack }) {
+function ModuleSelect({ onSelect, onBack, candidate }) {
   const [hovered, setHovered] = useState(null);
+  const [accessInfo, setAccessInfo] = useState(null);
+
+  useEffect(() => {
+    if (!candidate?.phone) { setAccessInfo(null); return; }
+    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`)
+      .then(r => r.json())
+      .then(data => setAccessInfo(data.hasActiveAccess ? data : null))
+      .catch(() => setAccessInfo(null));
+  }, [candidate]);
 
   return (
     <div style={{
@@ -822,7 +859,9 @@ function ModuleSelect({ onSelect, onBack }) {
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: 16,
         }}>
-          {MODULES.map(m => (
+          {MODULES.map(m => {
+            const isLocked = accessInfo?.scope === "module" && accessInfo.moduleSlug !== m.id;
+            return (
             <div
               key={m.id}
               onClick={() => onSelect(m)}
@@ -837,8 +876,16 @@ function ModuleSelect({ onSelect, onBack }) {
                 transition: "all 0.2s",
                 transform: hovered === m.id ? "translateY(-3px)" : "none",
                 boxShadow: hovered === m.id ? `0 8px 30px ${T.or}20` : "none",
+                opacity: isLocked ? 0.55 : 1,
+                position: "relative",
               }}
             >
+              {isLocked && (
+                <div style={{
+                  position: "absolute", top: 14, right: 14,
+                  fontSize: "0.9rem",
+                }}>🔒</div>
+              )}
               <div style={{
                 display: "flex", alignItems: "center",
                 justifyContent: "space-between", marginBottom: 16,
@@ -864,7 +911,16 @@ function ModuleSelect({ onSelect, onBack }) {
               <div style={{
                 fontSize: "0.78rem", color: T.gris, lineHeight: 1.6,
               }}>{m.desc}</div>
-              {m.id === "complet" && (
+              {isLocked && (
+                <div style={{
+                  marginTop: 16, padding: "8px 12px",
+                  background: `${T.braise}11`,
+                  border: `1px solid ${T.braise}33`,
+                  borderRadius: 3,
+                  fontSize: "0.72rem", color: T.braise,
+                }}>Nécessite l'accès complet</div>
+              )}
+              {!isLocked && m.id === "complet" && (
                 <div style={{
                   marginTop: 16, padding: "8px 12px",
                   background: `${T.or}11`,
@@ -875,7 +931,8 @@ function ModuleSelect({ onSelect, onBack }) {
                 }}>⭐ Recommandé pour l'entretien complet</div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -894,6 +951,8 @@ function Simulator({ module, candidate, onBack }) {
   const [timerMinutes, setTimerMinutes] = useState(null); // null = pas de chronomètre
   const [timeLeft, setTimeLeft] = useState(null);
   const [blocked, setBlocked] = useState(false);
+  const [blockedReason, setBlockedReason] = useState("trial"); // "trial" | "module"
+  const [blockedModuleOwned, setBlockedModuleOwned] = useState(null);
   const [basicMode, setBasicMode] = useState(false);
   const fallbackIndexRef = useRef(0);
   const attemptsRef = useRef(0);
@@ -1013,14 +1072,28 @@ function Simulator({ module, candidate, onBack }) {
     try {
       const res = await fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`);
       const data = await res.json();
-      if (data.hasActiveAccess) return true;
 
+      if (data.hasActiveAccess && data.scope === "full") {
+        return true; // accès total : tout est débloqué
+      }
+
+      if (data.hasActiveAccess && data.scope === "module") {
+        // Accès verrouillé à un seul module — les autres restent bloqués,
+        // sans recours possible à l'essai gratuit (déjà "au-delà" du trial).
+        if (data.moduleSlug === module.id) return true;
+        setBlockedReason("module");
+        setBlockedModuleOwned(data.moduleSlug);
+        return false;
+      }
+
+      // Pas d'accès payant du tout : on retombe sur l'essai gratuit
       const trialRes = await fetch("/api/trial/increment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: candidate.phone }),
       });
       const trialData = await trialRes.json();
+      if (!trialData.allowed) setBlockedReason("trial");
       return !!trialData.allowed;
     } catch {
       return true; // ne bloque pas le candidat en cas de souci réseau
@@ -1214,6 +1287,7 @@ function Simulator({ module, candidate, onBack }) {
   }
 
   if (blocked) {
+    const isModuleLock = blockedReason === "module";
     return (
       <div style={{
         minHeight: "100vh", background: T.noir, display: "flex",
@@ -1223,11 +1297,12 @@ function Simulator({ module, candidate, onBack }) {
         <div style={{ maxWidth: 400, textAlign: "center" }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
           <h2 style={{ color: T.or, fontFamily: "'Fraunces', Georgia, serif", fontSize: "1.3rem", marginBottom: 12 }}>
-            Essai gratuit terminé
+            {isModuleLock ? "Ce module n'est pas inclus dans ton accès" : "Essai gratuit terminé"}
           </h2>
           <p style={{ color: T.gris, fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 24 }}>
-            Tu as utilisé tes 2 questions d'essai gratuites. Débloque l'accès
-            complet pour continuer à t'entraîner sur tous les modules.
+            {isModuleLock
+              ? `Ton accès payant couvre uniquement le module "${blockedModuleOwned}". Débloque l'accès complet pour explorer tous les modules, y compris celui-ci.`
+              : "Tu as utilisé tes 2 questions d'essai gratuites. Débloque l'accès complet pour continuer à t'entraîner sur tous les modules."}
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
             <button onClick={onBack} style={{
@@ -1238,7 +1313,7 @@ function Simulator({ module, candidate, onBack }) {
               padding: "12px 20px", background: T.or, border: "none",
               borderRadius: 4, color: T.blanc, fontWeight: 700, cursor: "pointer",
               fontSize: "0.85rem", textDecoration: "none",
-            }}>Débloquer l'accès →</a>
+            }}>Débloquer l'accès complet →</a>
           </div>
         </div>
       </div>
@@ -1776,6 +1851,7 @@ export default function App() {
     <ModuleSelect
       onSelect={m => { setSelectedModule(m); setPage("simulator"); }}
       onBack={() => setPage("landing")}
+      candidate={candidate}
     />
   );
   if (page === "simulator" && selectedModule) return (
