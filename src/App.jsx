@@ -134,6 +134,14 @@ function formatTime(s) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Normalise un texte pour comparer des mots-clés sans tenir compte des accents/majuscules
+function normalizeText(str) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 // ── Synthèse vocale (lecture audio des questions) ───────────────────────────
 // Fonctionnalité native du navigateur, gratuite, aucun coût API.
 function speakText(text) {
@@ -174,44 +182,82 @@ async function callClaude(messages) {
 }
 
 // ── Banque de questions de secours ──────────────────────────────────────────
-// Utilisée automatiquement si l'IA est indisponible (crédit épuisé, panne,
-// compte suspendu) — garantit que l'app reste utilisable en toute circonstance.
+// Utilisée automatiquement si l'IA est indisponible — invisible pour le
+// candidat, qui vit une expérience continue. Les mots-clés attendus dans la
+// réponse sont marqués **ainsi** et s'affichent en valeur (voir Bubble).
+// Réponses-modèles généralisées : à personnaliser (nom, employeur, années).
 const FALLBACK_BANK = {
   personnalite: [
-    { q: "Présentez-vous en tant que candidat au poste de Chef Comptable.", s: "Je suis [votre nom], comptable avec plusieurs années d'expérience en environnement SYSCOHADA. J'ai été responsable de la tenue des comptes et des déclarations fiscales dans mon poste actuel. Je souhaite aujourd'hui mettre mon expertise au service de votre structure, avec plus de responsabilités en clôture et en management." },
-    { q: "Quelle est votre principale qualité professionnelle ?", s: "Ma rigueur : je vérifie systématiquement mes rapprochements bancaires et mes déclarations avant validation, ce qui a permis de réduire les écarts de trésorerie dans mon poste précédent." },
-    { q: "Quel est votre principal défaut, et comment le gérez-vous ?", s: "J'ai tendance à vouloir tout vérifier moi-même. J'apprends à déléguer davantage aux membres juniors de l'équipe, tout en gardant un contrôle qualité sur les points clés." },
-    { q: "Pourquoi souhaitez-vous évoluer vers ce poste ?", s: "Je recherche un poste offrant plus de responsabilités en clôture des comptes et en management d'équipe, correspondant à mon évolution de carrière vers un poste de Chef Comptable." },
+    { q: "Présentez-vous.", points: ["**nom complet**", "**années d'expérience**", "**poste actuel et employeur**", "**outils maîtrisés**"], s: "Je m'appelle [votre nom], comptable avec **plus de X années d'expérience**. Je travaille actuellement chez [votre employeur] où je gère **la comptabilité générale**, les déclarations fiscales et les travaux de fin d'exercice. Je maîtrise **Sage 100**, Digitax et Excel, et je suis aujourd'hui à la recherche d'une nouvelle opportunité." },
+    { q: "Quelles sont vos qualités principales ?", points: ["**3 qualités liées au métier**", "**exemple concret**", "**pourquoi ça compte**"], s: "Je suis **rigoureux(se)** — je vérifie toujours mes travaux avant de les soumettre. Je suis **discret(ète)**, car je traite des informations financières sensibles au quotidien. Et je respecte la **déontologie**, base de la confiance avec les clients." },
+    { q: "Quels sont vos défauts ?", points: ["**défaut réel non rédhibitoire**", "**comment vous le gérez**", "**rester bref et honnête**"], s: "Je suis parfois **trop perfectionniste**, ce qui me pousse à revérifier mon travail plusieurs fois. Je gère cela en m'imposant des **limites de temps claires** pour chaque tâche." },
+    { q: "Pourquoi cherchez-vous un nouveau poste ?", points: ["**ne jamais critiquer l'employeur actuel**", "**motivation positive**", "**lien avec le poste visé**"], s: "Après **[X années] en entreprise**, je souhaite évoluer vers un environnement offrant plus de diversité de missions. Ce poste me permettrait de mettre à profit mon expertise tout en continuant à **progresser dans ma carrière**." },
+    { q: "Pourquoi ce poste, pourquoi cette entreprise ?", points: ["**personnaliser la réponse**", "**ce qui vous attire précisément**", "**lien avec votre expérience**"], s: "Ce poste représente pour moi une opportunité d'**approfondir mon expertise** dans un environnement stimulant. Mon expérience passée est complémentaire à ce que vous recherchez, et cette diversité me motive vraiment." },
+    { q: "Comment gérez-vous la pression et les délais serrés ?", points: ["**méthode concrète (planning, priorisation)**", "**exemple vécu**", "**calme et maîtrise**"], s: "Je priorise mes tâches avec un **planning clair**. Lors des périodes de clôture, je planifie chaque étape à l'avance pour ne jamais être pris(e) de court. La **rigueur dans l'organisation** est ma meilleure arme contre la pression." },
+    { q: "Comment travaillez-vous en équipe ?", points: ["**communication et transparence**", "**disponibilité envers les collègues**", "**autonomie**"], s: "Je partage l'information facilement, je suis **disponible pour mes collègues** et j'adapte ma communication selon les interlocuteurs. La **transparence** est essentielle, tout en sachant travailler en **autonomie**." },
+    { q: "Décrivez une erreur professionnelle et ce que vous en avez appris.", points: ["**erreur réelle non grave**", "**prise de responsabilité**", "**leçon apprise**"], s: "J'ai eu un écart dans un rapprochement bancaire traité trop rapidement. J'en ai pris la **responsabilité**, je l'ai régularisé, et j'ai appris à **toujours vérifier deux fois** avant de valider." },
+    { q: "Où vous voyez-vous dans 3 ans ?", points: ["**ambition réaliste**", "**évolution vers plus de responsabilités**", "**lien avec l'entreprise**"], s: "J'aimerais évoluer vers un poste avec **plus de responsabilités**, en supervision et en conseil. Ce poste serait le cadre idéal pour y parvenir, si vous m'accompagnez dans cette progression." },
+    { q: "Quelle est votre prétention salariale ?", points: ["**ne pas donner de chiffre en premier**", "**vous positionner comme apportant une expertise**", "**ouverture à la discussion**"], s: "Je m'inscris dans une dynamique d'**intérêt commun**. Ce que j'apporte, c'est une expertise de **[X années]** et un savoir-faire éprouvé. Je vous fais confiance pour formuler une proposition **en adéquation avec le poste**, et je reste ouvert(e) à en discuter." },
   ],
   management: [
-    { q: "Comment organiseriez-vous une équipe comptable de 4 personnes ?", s: "Je répartirais les tâches par pôle : fournisseurs, clients, paie, et je centraliserais la clôture et le reporting, avec des points hebdomadaires de suivi." },
-    { q: "Comment gérez-vous un conflit entre deux membres de votre équipe ?", s: "Je reçois chacun individuellement pour comprendre les points de vue, puis j'organise un échange cadré pour trouver un terrain d'entente, recentré sur les objectifs communs du service." },
-    { q: "Comment formez-vous un collaborateur junior ?", s: "Je commence par un accompagnement rapproché sur les tâches simples, puis j'augmente progressivement la complexité en validant systématiquement son travail avant transmission." },
-    { q: "Comment fixez-vous les priorités en période de clôture ?", s: "J'établis un rétroplanning avec les échéances légales (DSF, déclarations fiscales) et je concentre l'équipe sur les tâches à plus fort enjeu réglementaire." },
+    { q: "Comment organisez-vous le travail au sein de votre équipe ?", points: ["**répartition selon les compétences**", "**planning avec échéances**", "**suivi régulier**"], s: "J'évalue les **compétences de chacun** pour répartir les tâches. J'établis un **planning avec échéances claires**, j'organise des points d'équipe réguliers et je reste disponible pour accompagner les difficultés." },
+    { q: "Comment contrôlez-vous la qualité du travail de vos collaborateurs ?", points: ["**procédure de révision systématique**", "**points sensibles vérifiés**", "**retour constructif**"], s: "Je mets en place une **révision systématique** sur les points sensibles : rapprochements, déclarations, soldes inhabituels. Après chaque contrôle, je donne un **retour constructif** pour faire progresser mon collaborateur." },
+    { q: "Comment formez-vous un collaborateur junior ?", points: ["**expliquer le sens avant la méthode**", "**montrer puis laisser faire**", "**valoriser les progrès**"], s: "J'explique le **sens de chaque tâche**, pas seulement la méthode. Je procède par étapes : je montre, on fait ensemble, puis je laisse le junior faire seul. Je **valorise les progrès** pour renforcer sa confiance." },
+    { q: "Comment gérez-vous les priorités en période de clôture avec plusieurs dossiers ?", points: ["**matrice urgence/importance**", "**anticipation**", "**délégation**"], s: "J'établis une **matrice de priorités** urgence/importance. J'anticipe les clôtures en planifiant les étapes en amont, et je **délègue les tâches exécutives** pour me concentrer sur la supervision." },
+    { q: "Un client se plaint de la qualité du travail d'un collaborateur. Comment réagissez-vous ?", points: ["**écouter sans minimiser**", "**vérifier les faits**", "**assumer la responsabilité**"], s: "J'écoute le client sans minimiser sa plainte, je vérifie les faits avec mon collaborateur, puis j'**assume la responsabilité** en tant que superviseur et je corrige le problème avec des mesures préventives." },
+    { q: "Comment motivez-vous votre équipe ?", points: ["**reconnaissance du travail**", "**implication dans les décisions**", "**montée en compétences**"], s: "Je **valorise le travail bien fait** et j'implique mes collaborateurs dans les décisions qui les concernent. Je favorise leur **montée en compétences** en leur confiant progressivement de nouvelles responsabilités." },
+    { q: "Comment gérez-vous un collaborateur en difficulté ?", points: ["**identifier la cause**", "**entretien individuel bienveillant**", "**objectifs clairs et suivi**"], s: "J'identifie d'abord la **nature de la difficulté** lors d'un entretien individuel bienveillant. Je propose un accompagnement adapté, puis je fixe des **objectifs clairs** avec un suivi rapproché." },
+    { q: "Comment faites-vous monter en compétences votre équipe sur des sujets complexes ?", points: ["**partage de connaissances interne**", "**cas concrets**", "**évaluation des acquis**"], s: "J'organise des **sessions de partage de connaissances** basées sur des cas concrets. J'encourage les formations externes et j'**évalue régulièrement les acquis** pour ajuster le plan de formation." },
+    { q: "Comment assurez-vous la continuité du service en cas d'absence d'un collaborateur clé ?", points: ["**documentation des dossiers**", "**polyvalence en binôme**", "**tableau de bord partagé**"], s: "Je veille à ce que chaque dossier soit **documenté et accessible** par au moins deux personnes. Je forme mes collaborateurs en **binôme** et je maintiens un **tableau de bord partagé** sur l'état des dossiers." },
+    { q: "Comment gérez-vous un désaccord avec votre supérieur ?", points: ["**arguments factuels**", "**respect de la décision finale**", "**traçabilité**"], s: "J'expose mon point de vue avec des **arguments factuels** et des chiffres à l'appui, de manière respectueuse. Si la décision finale lui revient, je l'applique tout en **documentant mes observations**." },
   ],
   technique: [
-    { q: "Quels logiciels comptables maîtrisez-vous et comment les utilisez-vous ?", s: "Je maîtrise Sage 100 (Comptabilité, Immobilisations, Gestion Commerciale) et Digitax pour la télédéclaration, utilisés au quotidien pour la tenue des comptes et les déclarations fiscales." },
-    { q: "Comment traitez-vous une immobilisation à l'acquisition ?", s: "Je l'enregistre à son coût d'acquisition hors taxes récupérables, je détermine son plan d'amortissement selon la durée d'usage SYSCOHADA, et je vérifie l'éligibilité à la TVA déductible." },
-    { q: "Comment justifiez-vous une provision pour risque ?", s: "Je m'assure qu'elle répond aux critères de probabilité et d'évaluation fiable de la sortie de ressources, avec les pièces justificatives à l'appui." },
-    { q: "Comment effectuez-vous un rapprochement bancaire ?", s: "Je compare le solde comptable au relevé bancaire, j'identifie les écritures en suspens, et je justifie tout écart avant la clôture du mois." },
+    { q: "Quels logiciels comptables maîtrisez-vous ?", points: ["**Sage 100 (Compta, Immobilisations, Gestion Commerciale)**", "**Digitax**", "**Excel**"], s: "Je maîtrise **Sage 100** Comptabilité, Immobilisations et Gestion Commerciale, ainsi que **Digitax** pour les obligations fiscales. Je suis également à l'aise avec **Excel** pour les analyses et le reporting." },
+    { q: "Qu'est-ce qu'un rapprochement bancaire ?", points: ["**comparer relevé et solde comptable**", "**identifier les écarts**", "**fréquence mensuelle**"], s: "C'est le contrôle entre le **solde du relevé bancaire** et le solde comptable, afin d'**identifier et d'expliquer les écarts**. Il se réalise généralement **chaque mois**." },
+    { q: "Quels types de déclarations fiscales avez-vous traités ?", points: ["**TVA, TPS, TSIL, CSS**", "**plateforme Digitax**", "**relation avec l'administration**"], s: "J'ai traité la **TVA**, la TPS, la TSIL, la CSS et les impôts sur salaires, via **Digitax**. Je gère également la relation avec l'**administration fiscale**." },
+    { q: "Qu'est-ce que la TVA et comment fonctionne-t-elle ?", points: ["**impôt indirect collecté sur les ventes**", "**déduction sur les achats**", "**taux 18% au Gabon**"], s: "La TVA est un impôt indirect **collecté sur les ventes** et reversé à l'État, après **déduction de la TVA payée sur les achats**. Au Gabon, le taux normal est de **18%**." },
+    { q: "Qu'est-ce que la DSF et comment la montez-vous ?", points: ["**balance définitive**", "**cohérence avec les déclarations fiscales**", "**délais légaux**"], s: "Je pars de la **balance définitive** après tous les travaux de fin d'exercice. Je contrôle la **cohérence avec les déclarations fiscales** de l'année, puis je renseigne bilan, compte de résultat et annexes dans les **délais légaux**." },
+    { q: "Comment traitez-vous les immobilisations ?", points: ["**coût d'acquisition**", "**plan d'amortissement**", "**suivi et inventaire**"], s: "Je les enregistre à leur **coût d'acquisition**, je calcule les **amortissements** selon leur nature et durée d'utilité, et je réalise un **inventaire annuel** pour vérifier leur existence physique." },
+    { q: "Comment gérez-vous le recouvrement des créances ?", points: ["**suivi des échéances**", "**relances progressives**", "**provisions pour créances douteuses**"], s: "Je suis les **échéances clients**, j'envoie des **relances progressives** en commençant par l'amiable, et je constitue des **provisions pour créances douteuses** en cas de non-paiement persistant." },
+    { q: "Quelle est la différence entre résultat comptable et résultat fiscal ?", points: ["**résultat comptable = compte de résultat**", "**réintégrations/déductions fiscales**", "**base de calcul de l'IS**"], s: "Le résultat comptable est issu du **compte de résultat**. Le résultat fiscal s'obtient en **réintégrant les charges non déductibles** et en déduisant les abattements autorisés. C'est sur ce résultat fiscal que l'**IS** est calculé." },
+    { q: "Comment détectez-vous une anomalie dans les comptes ?", points: ["**contrôles de cohérence**", "**soldes inhabituels**", "**croisement avec pièces justificatives**"], s: "Je réalise des **contrôles de cohérence** entre les comptes, je vérifie les **soldes inhabituels**, et je croise les données avec les **pièces justificatives** et relevés bancaires." },
+    { q: "Comment justifiez-vous un solde de compte lors d'un audit ?", points: ["**balance claire**", "**pièces justificatives**", "**dossier de révision structuré**"], s: "Je prépare une **balance des comptes** claire, je fournis les **pièces justificatives** pour chaque mouvement, et j'anticipe les questions en constituant un **dossier de révision structuré**." },
   ],
   OHADA: [
-    { q: "Quelles sont les obligations comptables selon le SYSCOHADA révisé ?", s: "Toute entreprise doit tenir une comptabilité régulière et sincère, et produire des états financiers annuels (Bilan, Compte de résultat, TFT, Notes annexes) selon le système applicable à sa taille." },
-    { q: "Quelle est la différence entre système normal et système minimal de trésorerie ?", s: "Le système normal s'applique aux entités dépassant certains seuils et exige un jeu complet d'états financiers ; le système minimal, simplifié, cible les très petites entités." },
-    { q: "Quelles sanctions en cas de non-conformité aux normes OHADA ?", s: "Les sanctions vont du rejet de comptabilité par l'administration fiscale à des sanctions pénales en cas de comptabilité fictive ou de fraude caractérisée." },
-    { q: "Que change concrètement le droit uniforme OHADA pour un comptable ?", s: "Il harmonise les règles comptables entre les pays membres, facilitant la comparabilité des comptes et la sécurité juridique des opérations transfrontalières." },
+    { q: "Que savez-vous du cadre comptable OHADA appliqué au Gabon ?", points: ["**SYSCOHADA révisé**", "**harmonisation 17 États**", "**états financiers obligatoires**"], s: "Le Gabon applique le **SYSCOHADA révisé** depuis 2018. Ce référentiel **harmonise les pratiques comptables** dans 17 États membres et impose des **états financiers structurés**." },
+    { q: "Quelles sont les principales obligations comptables selon le SYSCOHADA ?", points: ["**comptabilité régulière et sincère**", "**plan comptable OHADA**", "**conservation des pièces**"], s: "Le SYSCOHADA impose une **comptabilité régulière et sincère**, conforme au **plan comptable OHADA**. L'entreprise doit produire des états financiers annuels et **conserver les pièces justificatives**." },
+    { q: "Quelle est la différence entre système normal et système minimal de trésorerie ?", points: ["**seuils de chiffre d'affaires**", "**jeu complet d'états financiers**", "**entités simplifiées**"], s: "Le **système normal** s'applique aux entités dépassant certains seuils et exige un **jeu complet d'états financiers** ; le système minimal, simplifié, cible les **très petites entités**." },
+    { q: "Comment préparez-vous une DSF dans le contexte OHADA ?", points: ["**balance définitive**", "**vérification amortissements/provisions**", "**respect des délais**"], s: "Je pars de la **balance définitive**, je vérifie les **amortissements et provisions**, puis je renseigne les états financiers OHADA et annexes dans le **respect des délais**." },
+    { q: "Quelle est la différence entre résultat comptable et résultat fiscal en cadre OHADA ?", points: ["**résultat comptable OHADA**", "**retraitements fiscaux**", "**base de l'IS**"], s: "Le résultat comptable provient du **compte de résultat OHADA**. Le résultat fiscal s'obtient en le **retraitant selon la législation fiscale**, et sert de base au calcul de l'**IS**." },
+    { q: "Comment garantissez-vous la conformité d'un dossier comptable aux normes OHADA ?", points: ["**procédure de révision**", "**vérification des pièces**", "**anticipation des audits**"], s: "Je mets en place une **procédure de révision structurée**, je contrôle les pièces et les soldes sensibles, et je **documente chaque étape** pour anticiper les audits." },
+    { q: "Comment révisez-vous le travail de vos collaborateurs selon les normes OHADA ?", points: ["**cohérence de la balance**", "**justification des soldes**", "**conformité OHADA**"], s: "Je vérifie la **cohérence de la balance**, je m'assure que chaque solde est **justifié**, et je vérifie la **conformité OHADA** avant de donner un retour constructif." },
+    { q: "Comment justifiez-vous un solde lors d'un audit OHADA ?", points: ["**pièces justificatives**", "**explication des variations**", "**traçabilité**"], s: "Je fournis les **pièces justificatives**, j'explique les **variations significatives**, et je présente un dossier de révision structuré pour démontrer la **traçabilité** des comptes." },
+    { q: "Quelles sanctions en cas de non-conformité aux normes OHADA ?", points: ["**rejet de comptabilité**", "**sanctions administratives**", "**sanctions pénales en cas de fraude**"], s: "Les sanctions vont du **rejet de comptabilité** par l'administration fiscale à des **sanctions pénales** en cas de comptabilité fictive ou de fraude caractérisée." },
+    { q: "Comment accompagnez-vous votre équipe dans la maîtrise des normes OHADA ?", points: ["**formations internes**", "**cas pratiques**", "**veille réglementaire**"], s: "J'organise des **formations internes**, je partage des **cas pratiques**, et j'assure une **veille SYSCOHADA** régulière pour maintenir le niveau de l'équipe à jour." },
   ],
   fiscalite: [
-    { q: "Quels sont les taux de TVA applicables au Gabon ?", s: "Le taux normal est de 18%, avec des taux réduits sur certains produits, et certaines opérations sont exonérées selon le Code Général des Impôts." },
-    { q: "Comment calculez-vous l'Impôt sur les Sociétés ?", s: "L'IS s'applique au taux de 30% sur le résultat fiscal, obtenu après réintégration des charges non déductibles et déduction des charges admises." },
-    { q: "Quelles sont les échéances déclaratives fiscales principales ?", s: "La TVA se déclare généralement mensuellement, la DSF annuellement, et les acomptes d'IS suivent un calendrier propre à chaque exercice." },
-    { q: "Comment gérez-vous un contrôle fiscal ?", s: "Je prépare l'ensemble des pièces justificatives, je vérifie la cohérence entre comptabilité et déclarations déposées, et je collabore de manière transparente avec l'administration." },
+    { q: "Quelles sont les principales obligations fiscales d'une entreprise au Gabon ?", points: ["**déclarations mensuelles et annuelles**", "**DSF**", "**respect des délais**"], s: "Une entreprise doit produire ses **déclarations mensuelles et annuelles**, notamment la **DSF**. Je veille au **respect des délais** et à la cohérence entre comptabilité et fiscalité." },
+    { q: "Comment préparez-vous les déclarations fiscales mensuelles ?", points: ["**collecte des données**", "**vérification des bases imposables**", "**contrôle croisé comptabilité/fiscalité**"], s: "Je collecte les données, je **vérifie les bases imposables**, j'applique les règles fiscales en vigueur et je fais un **contrôle croisé** avec la comptabilité avant archivage." },
+    { q: "Quels sont les taux de TVA applicables au Gabon ?", points: ["**taux normal 18%**", "**taux réduits**", "**opérations exonérées**"], s: "Le taux normal est de **18%**, avec des **taux réduits** sur certains produits, et certaines opérations sont **exonérées** selon le Code Général des Impôts." },
+    { q: "Comment calculez-vous l'Impôt sur les Sociétés ?", points: ["**taux de 30%**", "**résultat fiscal**", "**réintégrations/déductions**"], s: "L'IS s'applique au taux de **30%** sur le **résultat fiscal**, obtenu après **réintégration des charges non déductibles** et déduction des charges admises." },
+    { q: "Quelles sont les échéances déclaratives fiscales principales ?", points: ["**TVA mensuelle**", "**DSF annuelle**", "**acomptes d'IS**"], s: "La **TVA** se déclare généralement **mensuellement**, la **DSF annuellement**, et les acomptes d'IS suivent un calendrier propre à chaque exercice." },
+    { q: "Comment gérez-vous un contrôle fiscal ?", points: ["**préparation du dossier**", "**cohérence comptable/fiscale**", "**réponses factuelles**"], s: "Je prépare un **dossier complet**, je vérifie la **cohérence comptable et fiscale**, et je réponds de manière **factuelle** aux observations de l'administration." },
+    { q: "Quelles taxes gabonaises spécifiques connaissez-vous en dehors de la TVA ?", points: ["**TPS**", "**TSIL**", "**CSS**"], s: "Je connais notamment la **TPS**, la **TSIL** et la **CSS**, en plus de la TVA et de l'IS, que j'ai déjà traitées via la plateforme **Digitax**." },
+    { q: "Comment assurez-vous la veille fiscale dans votre pratique ?", points: ["**suivi des lois de finances**", "**mise à jour des barèmes**", "**formation continue**"], s: "Je suis les **lois de finances annuelles** pour mettre à jour mes barèmes de calcul, et je me forme régulièrement pour rester conforme à la **réglementation en vigueur**." },
+    { q: "Comment justifiez-vous une charge déduite fiscalement ?", points: ["**pièce justificative probante**", "**lien avec l'activité**", "**conformité au CGI**"], s: "Je m'assure que chaque charge déduite est appuyée par une **pièce justificative probante**, qu'elle est **directement liée à l'activité**, et qu'elle respecte le **Code Général des Impôts**." },
+    { q: "Comment gérez-vous une relance ou une mise en demeure de l'administration fiscale ?", points: ["**analyse du motif**", "**réponse argumentée dans les délais**", "**régularisation si fondée**"], s: "J'analyse d'abord le **motif de la relance**, je prépare une **réponse argumentée dans les délais impartis**, et je procède à une **régularisation** si l'observation est fondée." },
   ],
   social: [
-    { q: "Quels sont les taux de cotisation CNSS actuels ?", s: "La cotisation CNSS comprend une part patronale et une part salariale, appliquées sur un salaire plafonné, avec des taux distincts selon les branches (retraite, prestations familiales, risques professionnels)." },
-    { q: "Quel est le rôle de la CNAMGS ?", s: "La CNAMGS gère l'assurance maladie et garantit l'accès aux soins des assurés et de leurs ayants droit, financée par des cotisations patronales et salariales." },
-    { q: "Quelles sont les obligations déclaratives sociales d'un employeur ?", s: "L'employeur doit déclarer et reverser mensuellement les cotisations CNSS et CNAMGS, et transmettre les déclarations nominatives des salaires dans les délais." },
-    { q: "Que risque un employeur en cas de retard de cotisations sociales ?", s: "Il s'expose à des pénalités de retard et des majorations, et dans les cas graves à des poursuites affectant sa conformité vis-à-vis des organismes sociaux." },
+    { q: "Quelles sont les obligations sociales d'un employeur au Gabon ?", points: ["**immatriculation**", "**déclarations mensuelles**", "**paiement des cotisations**"], s: "L'employeur doit **immatriculer les salariés**, produire les **déclarations sociales mensuelles**, et régler les **cotisations** dans les délais." },
+    { q: "Comment calculez-vous les cotisations sociales ?", points: ["**salaire brut soumis à cotisations**", "**taux légaux**", "**plafonds**"], s: "Je pars du **salaire brut soumis à cotisations**, j'applique les **taux légaux en vigueur**, et je respecte les **plafonds** réglementaires." },
+    { q: "Quel est le rôle de la CNSS ?", points: ["**retraite**", "**prestations familiales**", "**risques professionnels**"], s: "La **CNSS** couvre notamment la **retraite**, les **prestations familiales** et les **risques professionnels** des travailleurs affiliés." },
+    { q: "Quel est le rôle de la CNAMGS ?", points: ["**assurance maladie**", "**accès aux soins**", "**cotisations patronales et salariales**"], s: "La **CNAMGS** gère l'**assurance maladie** et garantit l'**accès aux soins** des assurés et de leurs ayants droit." },
+    { q: "Comment gérez-vous un contrôle CNSS ou CNAMGS ?", points: ["**dossier complet**", "**vérification des règles**", "**réponses factuelles**"], s: "Je prépare un **dossier complet**, je vérifie l'**application correcte des règles**, et je réponds de manière **factuelle** aux observations, avec correction si nécessaire." },
+    { q: "Comment sécurisez-vous la gestion sociale au quotidien ?", points: ["**calendrier social**", "**double contrôle**", "**veille réglementaire**"], s: "Je mets en place un **calendrier social**, j'assure un **double contrôle** des bases de calcul, et je fais une **veille régulière** sur les évolutions réglementaires." },
+    { q: "Que risque un employeur en cas de retard de cotisations sociales ?", points: ["**pénalités de retard**", "**majorations**", "**poursuites en cas grave**"], s: "Il s'expose à des **pénalités de retard** et des **majorations**, et dans les cas graves à des **poursuites** affectant sa conformité vis-à-vis des organismes sociaux." },
+    { q: "Comment gérez-vous l'immatriculation d'un nouveau salarié ?", points: ["**délai réglementaire**", "**pièces à fournir**", "**suivi du dossier**"], s: "Je respecte le **délai réglementaire** d'immatriculation, je rassemble les **pièces nécessaires**, et j'assure le **suivi du dossier** jusqu'à confirmation." },
+    { q: "Quelles sont les déclarations nominatives des salaires ?", points: ["**transmission mensuelle**", "**cohérence avec la paie**", "**archivage**"], s: "Ce sont des déclarations transmises **mensuellement**, garantissant la **cohérence entre la paie** effectuée et les cotisations déclarées, avec un **archivage** rigoureux." },
+    { q: "Comment gérez-vous un litige avec un organisme social ?", points: ["**analyse du différend**", "**argumentation documentée**", "**recours si nécessaire**"], s: "J'analyse d'abord le **différend** avec les pièces disponibles, je prépare une **argumentation documentée**, et j'envisage un **recours** si la situation le justifie." },
   ],
 };
 FALLBACK_BANK.complet = [
@@ -221,6 +267,10 @@ FALLBACK_BANK.complet = [
   FALLBACK_BANK.OHADA[0],
   FALLBACK_BANK.fiscalite[0],
   FALLBACK_BANK.social[0],
+  FALLBACK_BANK.personnalite[5],
+  FALLBACK_BANK.technique[7],
+  FALLBACK_BANK.management[9],
+  FALLBACK_BANK.personnalite[9],
 ];
 
 // ── Components ─────────────────────────────────────────────────────────────
@@ -340,6 +390,17 @@ function ModuleIcon({ id, size = 28, color }) {
   }
 }
 
+// Convertit les **mots-clés** en vrai texte en gras (pas d'astérisques visibles)
+function renderWithBold(text) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} style={{ color: "inherit", fontWeight: 800 }}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function Bubble({ msg }) {
   const isUser = msg.role === "user";
   return (
@@ -374,7 +435,7 @@ function Bubble({ msg }) {
           lineHeight: 1.7,
           whiteSpace: "pre-wrap",
         }}>
-          {msg.content}
+          {renderWithBold(msg.content)}
         </div>
         {!isUser && (
           <button
@@ -835,6 +896,7 @@ function Simulator({ module, candidate, onBack }) {
   const [blocked, setBlocked] = useState(false);
   const [basicMode, setBasicMode] = useState(false);
   const fallbackIndexRef = useRef(0);
+  const attemptsRef = useRef(0);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -995,7 +1057,7 @@ function Simulator({ module, candidate, onBack }) {
         { role: "user", content: fullPrompt },
         {
           role: "assistant",
-          content: `⚠️ Mode basique activé — l'assistant IA est momentanément indisponible. Voici des questions et des suggestions de réponse pré-construites, en attendant.\n\n${bank[0].q}`,
+          content: `Bonjour, je suis ravi(e) de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
         },
       ]);
     }
@@ -1017,17 +1079,45 @@ function Simulator({ module, candidate, onBack }) {
     setMessages(newMsgs);
     setInput("");
 
-    // Mode basique : plus d'appel IA, on sert la banque de questions locale
+    // Mode basique : plus d'appel IA, on sert la banque de questions locale.
+    // Le passage à la question suivante est conditionné à la présence des
+    // mots-clés attendus dans la réponse du candidat — comme le ferait un
+    // vrai recruteur qui attend des éléments précis.
     if (basicMode) {
       const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
       const current = bank[fallbackIndexRef.current];
-      fallbackIndexRef.current += 1;
-      const next = bank[fallbackIndexRef.current];
+      const keywords = (current?.points || []).map(p => p.replace(/\*\*/g, "").trim());
+      const normAnswer = normalizeText(userMsg.content);
+      const matched = keywords.filter(k => {
+        const words = normalizeText(k).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
+        return words.length === 0
+          ? normAnswer.includes(normalizeText(k))
+          : words.some(w => normAnswer.includes(w));
+      });
+      const missing = keywords.filter(k => !matched.includes(k));
+      const passed = keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2);
 
-      let reply = current ? `💡 Suggestion de réponse : ${current.s}` : "";
-      reply += next
-        ? `\n\n➡️ ${next.q}`
-        : `\n\nCeci conclut cette simulation en mode basique. Réessaie plus tard pour une session complète avec feedback personnalisé par l'IA.`;
+      let reply = "";
+      if (passed) {
+        attemptsRef.current = 0;
+        reply = matched.length > 0
+          ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.`
+          : "Réponse notée.";
+        fallbackIndexRef.current += 1;
+        const next = bank[fallbackIndexRef.current];
+        reply += next ? `\n\n${next.q}` : "\n\nCeci conclut cet entretien. Merci pour votre participation.";
+      } else {
+        attemptsRef.current += 1;
+        if (attemptsRef.current >= 2) {
+          reply = `Voici une réponse plus complète pour vous aider : ${current.s}`;
+          attemptsRef.current = 0;
+          fallbackIndexRef.current += 1;
+          const next = bank[fallbackIndexRef.current];
+          reply += next ? `\n\n${next.q}` : "\n\nCeci conclut cet entretien. Merci pour votre participation.";
+        } else {
+          reply = `Votre réponse gagnerait à être complétée. Pensez à mentionner : ${missing.join(", ")}.\n\nSouhaitez-vous préciser votre réponse ?`;
+        }
+      }
 
       setMessages(p => [...p, { role: "assistant", content: reply }]);
       setLoading(false);
@@ -1038,13 +1128,13 @@ function Simulator({ module, candidate, onBack }) {
     const reply = await callClaude(apiMsgs);
 
     if (!reply) {
-      // Échec IA en cours de simulation : bascule automatique, sans bloquer le candidat
+      // Échec IA en cours de simulation : bascule automatique et invisible pour le candidat
       setBasicMode(true);
       fallbackIndexRef.current = 0;
       const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
       setMessages(p => [...p, {
         role: "assistant",
-        content: `⚠️ Mode basique activé — l'assistant IA est momentanément indisponible. Voici des questions et des suggestions de réponse pré-construites, en attendant.\n\n${bank[0].q}`,
+        content: bank[0].q,
       }]);
       setLoading(false);
       return;
@@ -1110,7 +1200,8 @@ function Simulator({ module, candidate, onBack }) {
 
       doc.setFont(undefined, "normal");
       doc.setTextColor(40, 40, 40);
-      const lines = doc.splitTextToSize(msg.content, maxWidth);
+      const cleanContent = msg.content.replace(/\*\*/g, "");
+      const lines = doc.splitTextToSize(cleanContent, maxWidth);
       lines.forEach(line => {
         if (y > 285) { doc.addPage(); y = 20; }
         doc.text(line, marginX, y);
@@ -1400,17 +1491,6 @@ function Simulator({ module, candidate, onBack }) {
           }}>Quitter</button>
         </div>
       </div>
-
-      {basicMode && (
-        <div style={{
-          background: T.orFond, borderBottom: `1px solid ${T.or}44`,
-          padding: "8px 20px", textAlign: "center",
-          fontSize: "0.72rem", color: "#8A5A1E",
-          fontFamily: "'Space Mono', monospace",
-        }}>
-          ⚠️ Mode basique — questions et suggestions pré-construites (IA momentanément indisponible)
-        </div>
-      )}
 
       {/* Messages */}
       <div style={{
