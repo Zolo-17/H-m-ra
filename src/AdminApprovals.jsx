@@ -96,7 +96,7 @@ function RequestCard({ r, onApprove, onReject }) {
     <div style={{ border: "1px solid #333", borderRadius: 6, padding: 16, marginBottom: 12, maxWidth: 480 }}>
       <p style={{ margin: 0 }}><strong>{r.full_name}</strong> — {r.phone}</p>
       <p style={{ margin: "4px 0", color: T.gris, fontSize: "0.85rem" }}>
-        {r.method === "airtel_money" ? "Airtel Money" : "Moov Money"} · {r.offer_code} · réf : {r.transaction_reference || "—"}
+        {r.method === "airtel_money" ? "Airtel Money" : "Moov Money"} · {r.offer_code}{r.module_slug ? ` · module: ${r.module_slug}` : ""} · réf : {r.transaction_reference || "—"}
       </p>
       <p style={{ margin: "4px 0", color: statusColor, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase" }}>
         {r.status}
