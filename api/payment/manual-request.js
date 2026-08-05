@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { fullName, email, phone, method, offerCode, transactionReference } = req.body;
+  const { fullName, email, phone, method, offerCode, moduleSlug, transactionReference } = req.body;
 
   if (!fullName || !phone || !method || !offerCode) {
     return res.status(400).json({ error: "Champs manquants" });
@@ -53,6 +53,7 @@ export default async function handler(req, res) {
     phone,
     method,
     offer_code: offerCode,
+    module_slug: moduleSlug || null,
     transaction_reference: transactionReference || null,
   });
 
@@ -71,7 +72,7 @@ Nom : ${fullName}
 Email : ${email || "non renseigné"}
 Téléphone : ${phone}
 Méthode : ${method === "airtel_money" ? "Airtel Money" : "Moov Money"}
-Offre : ${offerCode}
+Offre : ${offerCode}${moduleSlug ? `\nModule : ${moduleSlug}` : ""}
 Référence transaction : ${transactionReference || "non renseignée"}
 
 Va sur ton site, https://h-m-ra-8vu2.vercel.app/admin , pour vérifier et approuver cette demande.`,
