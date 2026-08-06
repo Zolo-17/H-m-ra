@@ -35,6 +35,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ hasActiveAccess: false });
   }
 
+  // Toute vérification d'accès = une preuve de connexion active du candidat
+  await supabase
+    .from("users")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("id", user.id);
+
   const { data: grants, error } = await supabase
     .from("access_grants")
     .select("id, expires_at, status, scope, module_slug")
