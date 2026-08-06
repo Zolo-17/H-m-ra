@@ -960,6 +960,8 @@ function Simulator({ module, candidate, onBack }) {
   const basicScoreRef = useRef({ totalStars: 0, count: 0 }); // pour le score en mode secours
   const sessionLength = Math.min(module.questions, module.id === "complet" ? 10 : 8);
   const [listening, setListening] = useState(false);
+  const [micError, setMicError] = useState("");
+  const [listeningInterim, setListeningInterim] = useState("");
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const initialPromptRef = useRef("");
@@ -975,14 +977,21 @@ function Simulator({ module, candidate, onBack }) {
   useEffect(() => {
     return () => {
       shouldListenRef.current = false;
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // rien à faire
+      }
     };
   }, []);
 
   // Reconnaissance vocale : dicte la réponse du candidat dans le champ de texte.
   // Chrome coupe automatiquement l'écoute après quelques secondes de silence,
   // même en mode "continuous" — on relance donc automatiquement tant que le
-  // candidat n'a pas explicitement cliqué sur "Arrêter".
+  // candidat n'a pas explicitement cliqué sur "Arrêter". Un léger délai avant
+  // chaque relance évite les erreurs de redémarrage trop brutal (InvalidState).
+  const restartingRef = useRef(false);
+
   function createRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
@@ -991,8 +1000,10 @@ function Simulator({ module, candidate, onBack }) {
     recognition.lang = "fr-FR";
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
+      setMicError("");
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const chunk = event.results[i][0].transcript;
@@ -1004,26 +1015,43 @@ function Simulator({ module, candidate, onBack }) {
       }
       const combined = (baseTextRef.current + " " + finalTranscriptRef.current + interim).trim();
       setInput(combined);
+      setListeningInterim(interim.trim());
     };
 
     recognition.onerror = (event) => {
-      // "no-speech" survient souvent lors d'un silence normal entre deux phrases : pas une vraie erreur
-      if (event.error !== "no-speech") {
-        shouldListenRef.current = false;
-        setListening(false);
+      const recoverable = ["no-speech", "network", "aborted"];
+      if (recoverable.includes(event.error)) {
+        return; // le onend qui suit gèrera la relance automatiquement
+      }
+      // Erreurs bloquantes : on informe clairement le candidat plutôt que de rester silencieux
+      shouldListenRef.current = false;
+      setListening(false);
+      setListeningInterim("");
+      if (event.error === "not-allowed" || event.error === "permission-denied") {
+        setMicError("Accès au micro refusé. Autorise le micro dans les réglages de ton navigateur pour utiliser la dictée.");
+      } else if (event.error === "audio-capture") {
+        setMicError("Aucun micro détecté sur cet appareil.");
+      } else {
+        setMicError("La reconnaissance vocale a rencontré un problème. Réessaie, ou tape ta réponse.");
       }
     };
 
     recognition.onend = () => {
-      if (shouldListenRef.current) {
-        // Le candidat n'a pas demandé l'arrêt : on relance sans perdre le fil
-        try {
-          recognition.start();
-        } catch {
-          setListening(false);
-        }
-      } else {
+      if (shouldListenRef.current && !restartingRef.current) {
+        restartingRef.current = true;
+        setTimeout(() => {
+          restartingRef.current = false;
+          if (!shouldListenRef.current) return;
+          try {
+            recognition.start();
+          } catch {
+            setListening(false);
+            setListeningInterim("");
+          }
+        }, 250);
+      } else if (!shouldListenRef.current) {
         setListening(false);
+        setListeningInterim("");
       }
     };
 
@@ -1031,23 +1059,35 @@ function Simulator({ module, candidate, onBack }) {
   }
 
   function startListening() {
+    if (listening) return; // évite les doubles démarrages sur double-clic
     const recognition = createRecognition();
     if (!recognition) {
-      alert("La reconnaissance vocale n'est pas supportée par ce navigateur. Utilise Chrome (ordinateur ou Android) pour cette fonctionnalité.");
+      setMicError("La reconnaissance vocale n'est pas supportée par ce navigateur. Utilise Chrome (ordinateur ou Android) pour cette fonctionnalité.");
       return;
     }
+    setMicError("");
     baseTextRef.current = input;
     finalTranscriptRef.current = "";
     recognitionRef.current = recognition;
     shouldListenRef.current = true;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setMicError("Impossible de démarrer le micro. Réessaie dans un instant.");
+    }
   }
 
   function stopListening() {
     shouldListenRef.current = false;
-    recognitionRef.current?.stop();
+    restartingRef.current = false;
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // rien à faire, la reconnaissance était déjà arrêtée
+    }
     setListening(false);
+    setListeningInterim("");
   }
 
   // Relance le compte à rebours à chaque nouvelle question du recruteur
@@ -1653,10 +1693,29 @@ function Simulator({ module, candidate, onBack }) {
       <div style={{
         background: T.charbon,
         borderTop: `1px solid #EDD9B0`,
-        padding: "16px 20px",
-        display: "flex", gap: 12, alignItems: "flex-end",
+        padding: "10px 20px 16px",
+        display: "flex", flexDirection: "column", gap: 6,
         flexShrink: 0,
       }}>
+        {listening && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            fontSize: "0.72rem", color: "#C43E1C",
+            fontFamily: "'Space Mono', monospace",
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#C43E1C", animation: "micPulse 1.2s infinite",
+            }} />
+            Écoute en cours{listeningInterim ? ` — "${listeningInterim}"` : "…"}
+          </div>
+        )}
+        {micError && !listening && (
+          <div style={{ fontSize: "0.72rem", color: "#C43E1C" }}>
+            ⚠️ {micError}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
         <textarea
           ref={textareaRef}
           value={input}
@@ -1720,6 +1779,7 @@ function Simulator({ module, candidate, onBack }) {
               : `0 4px 15px ${T.or}40`,
           }}
         >→</button>
+        </div>
       </div>
 
       <style>{`
