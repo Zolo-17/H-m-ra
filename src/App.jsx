@@ -592,9 +592,9 @@ function Landing({ onStart, candidate, onFindProfile }) {
           marginBottom: 56,
         }}>
           {[
-            { n: "7", l: "Modules" },
-            { n: "Préparation", l: "Optimale" },
-            { n: "Succès", l: "Assuré" },
+            { n: "", l: "" },
+            { n: "", l: "" },
+            { n: "", l: "" },
           ].map(s => (
             <div key={s.l} style={{ textAlign: "center" }}>
               <div style={{
