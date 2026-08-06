@@ -9,7 +9,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const FREE_QUESTIONS_LIMIT = 2;
+const FREE_QUESTIONS_LIMIT = 5;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
