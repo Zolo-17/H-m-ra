@@ -538,7 +538,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
           fontSize: "0.75rem", color: T.gris,
           letterSpacing: 1, textTransform: "uppercase",
           fontFamily: "'Space Mono', monospace",
-        }}>Gabon · OHADA · 2026</div>
+        }}>Gabon · · 2026</div>
       </nav>
 
       {/* Hero */}
@@ -583,7 +583,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
         }}>
           Le premier simulateur d'entretien conçu spécifiquement pour les professionnels 
           de la comptabilité et de la finance au Gabon. SYSCOHADA, fiscalité gabonaise, 
-          OHADA — maîtrisez chaque question avec l'IA comme coach.
+           — maîtrisez chaque question avec Héméra comme coach.
         </p>
 
         {/* Stats */}
@@ -813,7 +813,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
           fontSize: "0.7rem", color: T.gris,
           marginTop: 12, letterSpacing: 1,
         }}>
-          Conçu pour les professionnels gabonais · SYSCOHADA 2018 · Fiscalité 2026
+          Conçu pour les professionnels gabonais · Comptabilité · Fiscalité 2026
         </div>
       </div>
     </div>
@@ -1188,7 +1188,7 @@ function Simulator({ module, candidate, onBack }) {
         { role: "user", content: fullPrompt },
         {
           role: "assistant",
-          content: `Bonjour, je suis ravi(e) de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
+          content: `Bonjour M., Mme, je suis ravi de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
         },
       ]);
     }
@@ -1498,7 +1498,6 @@ function Simulator({ module, candidate, onBack }) {
               "Parlez toujours en JE — jamais on/nous",
               "Donnez toujours un exemple concret",
               "Concluez en reliant au poste visé",
-              "N'utilisez jamais 'voilà' en conclusion",
             ].map(r => (
               <div key={r} style={{
                 fontSize: "0.78rem", color: T.orPale,
