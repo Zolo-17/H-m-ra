@@ -38,15 +38,21 @@ export default function PaymentManual() {
   const [phone, setPhone] = useState("");
   const [reference, setReference] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | done | error
+  const [knownProfile, setKnownProfile] = useState(false); // profil complet déjà connu → champs masqués
+  const [editingProfile, setEditingProfile] = useState(false); // "Ce n'est pas toi ?" forcé à modifier
 
-  // Pré-remplit email/téléphone si le candidat s'est déjà inscrit sur le site
+  // Pré-remplit tout le profil si le candidat s'est déjà inscrit sur le site.
+  // S'il est complet (nom + email + téléphone), on masque carrément les champs
+  // pour ne plus jamais lui faire ressaisir la même information.
   useEffect(() => {
     try {
       const saved = localStorage.getItem("hemera_candidate");
       if (saved) {
         const info = JSON.parse(saved);
+        if (info.fullName) setFullName(info.fullName);
         if (info.email) setEmail(info.email);
         if (info.phone) setPhone(info.phone);
+        if (info.fullName && info.email && info.phone) setKnownProfile(true);
       }
     } catch {
       // pas grave si rien à pré-remplir
@@ -55,6 +61,7 @@ export default function PaymentManual() {
 
   const selectedOffer = OFFERS.find(o => o.code === offerCode);
   const isModuleOffer = selectedOffer.scope === "module";
+  const showIdentityFields = !knownProfile || editingProfile;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -105,6 +112,30 @@ export default function PaymentManual() {
         <p style={{ color: T.gris, fontSize: "0.85rem", marginBottom: 20 }}>
           Paiement unique, sans reconduction automatique.
         </p>
+
+        {knownProfile && !editingProfile && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: T.charbon, border: `1px solid ${T.bordure}`, borderRadius: 6,
+            padding: "10px 14px", marginBottom: 20,
+          }}>
+            <div>
+              <div style={{ fontSize: "0.65rem", color: T.gris, textTransform: "uppercase", letterSpacing: 1 }}>
+                Connecté en tant que
+              </div>
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: T.blanc }}>{fullName}</div>
+              <div style={{ fontSize: "0.75rem", color: T.gris }}>{email} · {phone}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingProfile(true)}
+              style={{
+                background: "none", border: "none", color: T.or,
+                fontSize: "0.72rem", textDecoration: "underline", cursor: "pointer",
+              }}
+            >Ce n'est pas toi ?</button>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
           {METHODS.map(m => (
@@ -163,27 +194,31 @@ export default function PaymentManual() {
             </>
           )}
 
-          <label style={labelStyle}>Nom complet</label>
-          <input required value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
+          {showIdentityFields && (
+            <>
+              <label style={labelStyle}>Nom complet</label>
+              <input required value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
 
-          <label style={labelStyle}>Ton adresse email</label>
-          <input
-            required
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="toi@exemple.com"
-            style={inputStyle}
-          />
+              <label style={labelStyle}>Ton adresse email</label>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="toi@exemple.com"
+                style={inputStyle}
+              />
 
-          <label style={labelStyle}>Ton numéro de téléphone</label>
-          <input
-            required
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            placeholder="Ex : 07XXXXXXX"
-            style={inputStyle}
-          />
+              <label style={labelStyle}>Ton numéro de téléphone</label>
+              <input
+                required
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="Ex : 07XXXXXXX"
+                style={inputStyle}
+              />
+            </>
+          )}
 
           <label style={labelStyle}>
             Référence de transaction reçue par SMS (recommandé)
@@ -222,3 +257,4 @@ const submitStyle = {
   width: "100%", marginTop: 24, padding: 14, background: T.or, border: "none",
   borderRadius: 4, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem",
 };
+  
