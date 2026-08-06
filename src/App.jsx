@@ -142,6 +142,21 @@ function normalizeText(str) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+// ── Relances variées en mode secours ────────────────────────────────────────
+// Évite de répéter toujours la même phrase, pour renforcer l'illusion d'un
+// véritable échange dynamique plutôt qu'un message figé.
+const ENCOURAGEMENTS = [
+  "Votre réponse est un peu courte pour un entretien professionnel. Pouvez-vous développer davantage ?",
+  "Un recruteur attend une réponse plus construite et argumentée. Essayez d'être plus précis.",
+  "Ce n'est pas encore suffisant — prenez le temps de structurer une réponse complète, avec un exemple concret.",
+  "Votre réponse manque de substance à ce stade. Ajoutez des détails ou une explication plus approfondie.",
+  "Essayez d'aller plus loin dans votre réponse : un recruteur voudra en savoir plus sur votre expérience.",
+  "Une réponse aussi brève ne convaincrait pas un recruteur. Reformulez en développant votre pensée.",
+];
+function pickEncouragement() {
+  return ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
+}
+
 // ── Synthèse vocale (lecture audio des questions) ───────────────────────────
 // Fonctionnalité native du navigateur, gratuite, aucun coût API.
 function speakText(text) {
@@ -1205,6 +1220,8 @@ function Simulator({ module, candidate, onBack }) {
       const current = bank[fallbackIndexRef.current];
       const keywords = (current?.points || []).map(p => p.replace(/\*\*/g, "").trim());
       const normAnswer = normalizeText(userMsg.content);
+      const wordCount = userMsg.content.trim().split(/\s+/).filter(Boolean).length;
+      const tooShort = wordCount < 8; // filtre les "oui", "ok", "non", réponses évasives
       const matched = keywords.filter(k => {
         const words = normalizeText(k).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
         return words.length === 0
@@ -1212,7 +1229,7 @@ function Simulator({ module, candidate, onBack }) {
           : words.some(w => normAnswer.includes(w));
       });
       const missing = keywords.filter(k => !matched.includes(k));
-      const passed = keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2);
+      const passed = !tooShort && (keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2));
 
       function closeBasicInterview() {
         const avgStars = basicScoreRef.current.count > 0
@@ -1261,7 +1278,13 @@ function Simulator({ module, candidate, onBack }) {
             reply += closeBasicInterview();
           }
         } else {
-          reply = `Votre réponse gagnerait à être complétée. Pensez à mentionner : ${missing.join(", ")}.\n\nSouhaitez-vous préciser votre réponse ?`;
+          const nudge = pickEncouragement();
+          const detail = tooShort
+            ? " Une réponse d'entretien professionnel se construit en plusieurs phrases, avec des exemples concrets."
+            : missing.length > 0
+              ? ` Pensez notamment à mentionner : ${missing.join(", ")}.`
+              : "";
+          reply = `${nudge}${detail}\n\n${current.q}`;
         }
       }
 
