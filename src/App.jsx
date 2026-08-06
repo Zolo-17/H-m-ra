@@ -499,7 +499,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
       const res = await fetch(`/api/profile/lookup?phone=${encodeURIComponent(lookupPhone.trim())}`);
       const data = await res.json();
       if (data.found) {
-        onFindProfile({ email: data.email, phone: lookupPhone.trim() });
+        onFindProfile({ fullName: data.fullName, email: data.email, phone: lookupPhone.trim() });
       } else {
         setLookupStatus("notfound");
       }
@@ -1812,6 +1812,7 @@ function Simulator({ module, candidate, onBack }) {
 // ── App ────────────────────────────────────────────────────────────────────
 // ── Inscription du candidat ─────────────────────────────────────────────────
 function Register({ onRegistered, onBack }) {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
@@ -1819,6 +1820,10 @@ function Register({ onRegistered, onBack }) {
   function handleSubmit(e) {
     e.preventDefault();
     const cleanPhone = phone.trim().replace(/\s+/g, "");
+    if (!fullName.trim()) {
+      setError("Merci d'indiquer ton nom complet.");
+      return;
+    }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
       setError("Adresse email invalide.");
       return;
@@ -1828,7 +1833,7 @@ function Register({ onRegistered, onBack }) {
       return;
     }
     setError("");
-    onRegistered({ email: email.trim(), phone: cleanPhone });
+    onRegistered({ fullName: fullName.trim(), email: email.trim(), phone: cleanPhone });
   }
 
   return (
@@ -1845,11 +1850,29 @@ function Register({ onRegistered, onBack }) {
           Avant de commencer
         </h1>
         <p style={{ color: T.gris, fontSize: "0.85rem", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>
-          Renseigne ton email et ton numéro pour créer ton profil candidat.
-          Tu bénéficies de 5 questions d'essai gratuites, tous modules confondus.
+          Crée ton profil une seule fois — tu n'auras plus jamais à ressaisir
+          ces informations, y compris pour payer. Tu bénéficies aussi de
+          5 questions d'essai gratuites, tous modules confondus.
         </p>
 
         <form onSubmit={handleSubmit}>
+          <label style={{
+            fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
+            textTransform: "uppercase", display: "block", marginBottom: 6,
+          }}>Nom complet</label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            placeholder="Ex : Jean Ndong"
+            style={{
+              width: "100%", padding: "10px 12px", marginBottom: 16,
+              background: T.graphite, border: "1px solid #E8D2AC",
+              borderRadius: 4, color: T.blanc, fontSize: "0.85rem",
+              outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+            }}
+          />
+
           <label style={{
             fontSize: "0.65rem", color: T.gris, letterSpacing: 1,
             textTransform: "uppercase", display: "block", marginBottom: 6,
@@ -1945,7 +1968,7 @@ export default function App() {
     fetch("/api/profile/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: info.phone, email: info.email }),
+      body: JSON.stringify({ phone: info.phone, email: info.email, fullName: info.fullName }),
     }).catch(() => {});
   };
 
