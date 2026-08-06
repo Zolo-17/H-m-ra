@@ -1380,7 +1380,7 @@ function Simulator({ module, candidate, onBack }) {
           <p style={{ color: T.gris, fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 24 }}>
             {isModuleLock
               ? `Ton accès payant couvre uniquement le module "${blockedModuleOwned}". Débloque l'accès complet pour explorer tous les modules, y compris celui-ci.`
-              : "Tu as utilisé tes 2 questions d'essai gratuites. Débloque l'accès complet pour continuer à t'entraîner sur tous les modules."}
+              : "Tu as utilisé tes 5 questions d'essai gratuites. Débloque l'accès complet pour continuer à t'entraîner sur tous les modules."}
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
             <button onClick={onBack} style={{
@@ -1838,7 +1838,7 @@ function Register({ onRegistered, onBack }) {
         </h1>
         <p style={{ color: T.gris, fontSize: "0.85rem", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>
           Renseigne ton email et ton numéro pour créer ton profil candidat.
-          Tu bénéficies de 2 questions d'essai gratuites, tous modules confondus.
+          Tu bénéficies de 5 questions d'essai gratuites, tous modules confondus.
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -1932,6 +1932,13 @@ export default function App() {
     localStorage.setItem("hemera_candidate", JSON.stringify(info));
     setCandidate(info);
     setPage(selectedModule ? "simulator" : "modules");
+    // Mémorise le profil côté serveur (pas seulement dans ce navigateur),
+    // pour que toi comme la plateforme sachiez qui s'est inscrit et quand.
+    fetch("/api/profile/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: info.phone, email: info.email }),
+    }).catch(() => {});
   };
 
   const handleFindProfile = (info) => {
