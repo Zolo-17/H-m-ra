@@ -538,7 +538,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
           fontSize: "0.75rem", color: T.gris,
           letterSpacing: 1, textTransform: "uppercase",
           fontFamily: "'Space Mono', monospace",
-        }}>Gabon · · 2026</div>
+        }}>Gabon · Comptabilité · 2026</div>
       </nav>
 
       {/* Hero */}
@@ -582,8 +582,8 @@ function Landing({ onStart, candidate, onFindProfile }) {
           lineHeight: 1.8,
         }}>
           Le premier simulateur d'entretien conçu spécifiquement pour les professionnels 
-          de la comptabilité et de la finance au Gabon. SYSCOHADA, fiscalité gabonaise, 
-           — maîtrisez chaque question avec Héméra comme coach.
+          de la comptabilité et de la finance au Gabon. Maîtrisez chaque question 
+          avec Héméra comme coach.
         </p>
 
         {/* Stats */}
@@ -592,9 +592,8 @@ function Landing({ onStart, candidate, onFindProfile }) {
           marginBottom: 56,
         }}>
           {[
-            { n: "", l: "" },
-            { n: "", l: "" },
-            { n: "", l: "" },
+            { n: "7", l: "Modules" },
+            { n: "24/7", l: "Disponible" },
           ].map(s => (
             <div key={s.l} style={{ textAlign: "center" }}>
               <div style={{
@@ -1188,7 +1187,7 @@ function Simulator({ module, candidate, onBack }) {
         { role: "user", content: fullPrompt },
         {
           role: "assistant",
-          content: `Bonjour M., Mme, je suis ravi de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
+          content: `Bonjour, je suis ravi(e) de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
         },
       ]);
     }
@@ -1231,6 +1230,13 @@ function Simulator({ module, candidate, onBack }) {
       const missing = keywords.filter(k => !matched.includes(k));
       const passed = !tooShort && (keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2));
 
+      // Détection de style, comme le ferait un vrai recruteur attentif
+      const usesOnNous = /\b(on |nous )\w/i.test(userMsg.content) && !/\bje\b/i.test(userMsg.content);
+      const endsWithVoila = /voil[àa]\s*\.?\s*$/i.test(userMsg.content.trim());
+      const styleRemarks = [];
+      if (usesOnNous) styleRemarks.push("💬 Essayez de privilégier le \"je\" plutôt que le \"on/nous\" — cela montre votre implication personnelle.");
+      if (endsWithVoila) styleRemarks.push("💬 Évitez de conclure par \"voilà\" — terminez plutôt sur une phrase affirmative et structurée.");
+
       function closeBasicInterview() {
         const avgStars = basicScoreRef.current.count > 0
           ? basicScoreRef.current.totalStars / basicScoreRef.current.count
@@ -1243,14 +1249,16 @@ function Simulator({ module, candidate, onBack }) {
       let reply = "";
       if (passed) {
         attemptsRef.current = 0;
-        const stars = keywords.length === 0
+        let stars = keywords.length === 0
           ? 5
           : Math.max(1, Math.min(5, Math.ceil((matched.length / keywords.length) * 5)));
+        if (styleRemarks.length > 0) stars = Math.max(1, stars - 1);
         basicScoreRef.current.totalStars += stars;
         basicScoreRef.current.count += 1;
         answeredCountRef.current += 1;
 
         reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\n${matched.length > 0 ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.` : "Réponse notée."}`;
+        if (styleRemarks.length > 0) reply += `\n\n${styleRemarks.join("\n")}`;
 
         const next = bank[fallbackIndexRef.current + 1];
         if (next && answeredCountRef.current < sessionLength) {
@@ -1482,28 +1490,6 @@ function Simulator({ module, candidate, onBack }) {
                   letterSpacing: 1, textTransform: "uppercase",
                   marginTop: 4,
                 }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{
-            background: T.orFond,
-            border: `1px solid ${T.or}33`,
-            borderRadius: 4,
-            padding: "12px 16px",
-            marginBottom: 28,
-            textAlign: "left",
-          }}>
-            {[
-              "Parlez toujours en JE — jamais on/nous",
-              "Donnez toujours un exemple concret",
-              "Concluez en reliant au poste visé",
-            ].map(r => (
-              <div key={r} style={{
-                fontSize: "0.78rem", color: T.orPale,
-                marginBottom: 6, display: "flex", gap: 8,
-              }}>
-                <span style={{ color: T.or }}>→</span> {r}
               </div>
             ))}
           </div>
