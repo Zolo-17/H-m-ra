@@ -48,6 +48,8 @@ RÈGLES STRICTES:
 - Tu signales si le candidat dit "voilà" en conclusion
 - Tu exiges toujours un exemple concret
 - Tu exiges une conclusion reliée au poste visé
+- Si le candidat pose une question au lieu de répondre à la tienne, rappelle-lui poliment mais fermement que cette simulation sert à s'entraîner à répondre aux questions d'un recruteur, sans répondre toi-même à sa question, puis repose la même question qu'avant.
+- Pour les questions ouvertes et comportementales (motivation, management, gestion de situations), ne sanctionne pas l'absence de mots-clés précis : encourage plutôt le candidat à structurer sa pensée avec des arguments et un exemple concret, en lui donnant des pistes concrètes à exploiter s'il en manque.
 
 Commence toujours par un accueil chaleureux et courtois d'une ou deux phrases, qui rappelle brièvement que cette session s'inscrit dans la préparation Héméra à un entretien d'embauche, avant de te présenter comme recruteur et de poser la première question du module choisi. Évite tout ton robotique, scolaire ou trop formel : sois humain, bienveillant, mets le candidat en confiance dès les premiers mots, comme le ferait un recruteur expérimenté mais accueillant.`;
 
@@ -167,6 +169,17 @@ function shuffleArray(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// Construit la banque de questions d'une session : mélangée, SAUF la question
+// "Présentez-vous" qui doit toujours ouvrir l'entretien (comme le ferait un
+// vrai recruteur), quand elle existe dans la banque du module.
+function buildSessionBank(bank) {
+  if (bank.length > 0 && bank[0].q === "Présentez-vous.") {
+    const [first, ...rest] = bank;
+    return [first, ...shuffleArray(rest)];
+  }
+  return shuffleArray(bank);
 }
 
 // ── Synthèse vocale (lecture audio des questions) ───────────────────────────
@@ -307,18 +320,18 @@ const FALLBACK_BANK = {
   ],
 };
 FALLBACK_BANK.complet = [
-  FALLBACK_BANK.personnalite[0],
-  FALLBACK_BANK.management[0],
+  { ...FALLBACK_BANK.personnalite[0], open: true },
+  { ...FALLBACK_BANK.management[0], open: true },
   FALLBACK_BANK.technique[0],
   FALLBACK_BANK.OHADA[0],
   FALLBACK_BANK.fiscalite[0],
   FALLBACK_BANK.social[0],
-  FALLBACK_BANK.personnalite[5],
+  { ...FALLBACK_BANK.personnalite[5], open: true },
   FALLBACK_BANK.technique[7],
-  FALLBACK_BANK.management[9],
+  { ...FALLBACK_BANK.management[9], open: true },
   FALLBACK_BANK.fiscalite[7],
   FALLBACK_BANK.social[8],
-  FALLBACK_BANK.personnalite[9],
+  { ...FALLBACK_BANK.personnalite[9], open: true },
 ];
 
 // ── Components ─────────────────────────────────────────────────────────────
@@ -1217,7 +1230,7 @@ function Simulator({ module, candidate, onBack }) {
       setBasicMode(true);
       fallbackIndexRef.current = 0;
       const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
-      sessionBankRef.current = shuffleArray(bank);
+      sessionBankRef.current = buildSessionBank(bank);
       setMessages([
         { role: "user", content: fullPrompt },
         {
@@ -1251,14 +1264,28 @@ function Simulator({ module, candidate, onBack }) {
     // reçoit une note en étoiles, et un bilan final s'affiche à la fin.
     if (basicMode) {
       if (sessionBankRef.current.length === 0) {
-        sessionBankRef.current = shuffleArray(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
+        sessionBankRef.current = buildSessionBank(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
       }
       const bank = sessionBankRef.current;
       const current = bank[fallbackIndexRef.current];
+
+      // Le candidat pose une question au lieu de répondre : on le recadre,
+      // sans répondre à sa question, et on repose la même question.
+      if (userMsg.content.trim().endsWith("?")) {
+        setMessages(p => [...p, {
+          role: "assistant",
+          content: `Cette simulation sert à vous entraîner à répondre aux questions d'un recruteur — je ne peux pas répondre aux vôtres ici. Revenons à la question posée :\n\n${current.q}`,
+        }]);
+        setLoading(false);
+        return;
+      }
+
+      const isOpenQuestion = !!current?.open;
       const keywords = (current?.points || []).map(p => p.replace(/\*\*/g, "").trim());
       const normAnswer = normalizeText(userMsg.content);
       const wordCount = userMsg.content.trim().split(/\s+/).filter(Boolean).length;
-      const tooShort = wordCount < 8; // filtre les "oui", "ok", "non", réponses évasives
+      const tooShort = wordCount < (isOpenQuestion ? 15 : 8); // les questions ouvertes exigent un peu plus de développement
+      const hasExample = /\b(exemple|par exemple|notamment|lorsque|une fois|comme quand|chez\s+\w+|dans mon poste|au sein de)\b/i.test(userMsg.content);
       const matched = keywords.filter(k => {
         const words = normalizeText(k).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
         return words.length === 0
@@ -1266,7 +1293,11 @@ function Simulator({ module, candidate, onBack }) {
           : words.some(w => normAnswer.includes(w));
       });
       const missing = keywords.filter(k => !matched.includes(k));
-      const passed = !tooShort && (keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2));
+      // Questions ouvertes : pas de sanction sur des mots-clés précis, seule la
+      // longueur/le développement compte — l'important est la structure et l'exemple.
+      const passed = isOpenQuestion
+        ? !tooShort
+        : !tooShort && (keywords.length === 0 || matched.length >= Math.ceil(keywords.length / 2));
 
       // Détection de style, comme le ferait un vrai recruteur attentif
       const usesOnNous = /\b(on |nous )\w/i.test(userMsg.content) && !/\bje\b/i.test(userMsg.content);
@@ -1274,6 +1305,7 @@ function Simulator({ module, candidate, onBack }) {
       const styleRemarks = [];
       if (usesOnNous) styleRemarks.push("💬 Essayez de privilégier le \"je\" plutôt que le \"on/nous\" — cela montre votre implication personnelle.");
       if (endsWithVoila) styleRemarks.push("💬 Évitez de conclure par \"voilà\" — terminez plutôt sur une phrase affirmative et structurée.");
+      if (isOpenQuestion && !hasExample) styleRemarks.push("💬 La prochaine fois, appuyez votre réponse sur un exemple concret vécu — ça renforce toujours la crédibilité d'une réponse.");
 
       function closeBasicInterview() {
         const avgStars = basicScoreRef.current.count > 0
@@ -1287,15 +1319,24 @@ function Simulator({ module, candidate, onBack }) {
       let reply = "";
       if (passed) {
         attemptsRef.current = 0;
-        let stars = keywords.length === 0
-          ? 5
-          : Math.max(1, Math.min(5, Math.ceil((matched.length / keywords.length) * 5)));
-        if (styleRemarks.length > 0) stars = Math.max(1, stars - 1);
+        let stars;
+        if (isOpenQuestion) {
+          stars = hasExample ? 5 : 4; // on encourage, on ne sanctionne pas sévèrement
+        } else {
+          stars = keywords.length === 0
+            ? 5
+            : Math.max(1, Math.min(5, Math.ceil((matched.length / keywords.length) * 5)));
+        }
+        if (usesOnNous || endsWithVoila) stars = Math.max(1, stars - 1);
         basicScoreRef.current.totalStars += stars;
         basicScoreRef.current.count += 1;
         answeredCountRef.current += 1;
 
-        reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\n${matched.length > 0 ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.` : "Réponse notée."}`;
+        if (isOpenQuestion) {
+          reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\n${hasExample ? "Bonne réponse, bien structurée et appuyée par un exemple concret." : "Réponse notée, bien construite."}`;
+        } else {
+          reply = `${"⭐".repeat(stars)}${"☆".repeat(5 - stars)}\n${matched.length > 0 ? `Bonne réponse — vous avez bien mentionné : ${matched.join(", ")}.` : "Réponse notée."}`;
+        }
         if (styleRemarks.length > 0) reply += `\n\n${styleRemarks.join("\n")}`;
 
         const next = bank[fallbackIndexRef.current + 1];
@@ -1350,7 +1391,7 @@ function Simulator({ module, candidate, onBack }) {
       // Échec IA en cours de simulation : bascule automatique et invisible pour le candidat
       setBasicMode(true);
       fallbackIndexRef.current = 0;
-      sessionBankRef.current = shuffleArray(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
+      sessionBankRef.current = buildSessionBank(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
       setMessages(p => [...p, {
         role: "assistant",
         content: sessionBankRef.current[0].q,
