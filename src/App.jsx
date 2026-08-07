@@ -49,7 +49,7 @@ RÈGLES STRICTES:
 - Tu exiges toujours un exemple concret
 - Tu exiges une conclusion reliée au poste visé
 
-Commence par te présenter comme recruteur et poser la première question selon le module choisi.`;
+Commence toujours par un accueil chaleureux et courtois d'une ou deux phrases, qui rappelle brièvement que cette session s'inscrit dans la préparation Héméra à un entretien d'embauche, avant de te présenter comme recruteur et de poser la première question du module choisi. Évite tout ton robotique, scolaire ou trop formel : sois humain, bienveillant, mets le candidat en confiance dès les premiers mots, comme le ferait un recruteur expérimenté mais accueillant.`;
 
 // ── Modules ────────────────────────────────────────────────────────────────
 const MODULES = [
@@ -157,6 +157,18 @@ function pickEncouragement() {
   return ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
 }
 
+// Mélange aléatoire (Fisher-Yates) — pour qu'un candidat qui refait le même
+// module ne retombe pas systématiquement sur les mêmes questions, dans le
+// même ordre.
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // ── Synthèse vocale (lecture audio des questions) ───────────────────────────
 // Fonctionnalité native du navigateur, gratuite, aucun coût API.
 function speakText(text) {
@@ -213,6 +225,10 @@ const FALLBACK_BANK = {
     { q: "Décrivez une erreur professionnelle et ce que vous en avez appris.", points: ["**erreur réelle non grave**", "**prise de responsabilité**", "**leçon apprise**"], s: "J'ai eu un écart dans un rapprochement bancaire traité trop rapidement. J'en ai pris la **responsabilité**, je l'ai régularisé, et j'ai appris à **toujours vérifier deux fois** avant de valider." },
     { q: "Où vous voyez-vous dans 3 ans ?", points: ["**ambition réaliste**", "**évolution vers plus de responsabilités**", "**lien avec l'entreprise**"], s: "J'aimerais évoluer vers un poste avec **plus de responsabilités**, en supervision et en conseil. Ce poste serait le cadre idéal pour y parvenir, si vous m'accompagnez dans cette progression." },
     { q: "Quelle est votre prétention salariale ?", points: ["**ne pas donner de chiffre en premier**", "**vous positionner comme apportant une expertise**", "**ouverture à la discussion**"], s: "Je m'inscris dans une dynamique d'**intérêt commun**. Ce que j'apporte, c'est une expertise de **[X années]** et un savoir-faire éprouvé. Je vous fais confiance pour formuler une proposition **en adéquation avec le poste**, et je reste ouvert(e) à en discuter." },
+    { q: "Comment réagissez-vous face à une critique sur votre travail ?", points: ["**accueillir sans se braquer**", "**analyser objectivement**", "**corriger si justifié**"], s: "J'accueille la critique **sans me braquer**, je prends le temps de l'**analyser objectivement**, et si elle est justifiée, je **corrige mon approche**. Je vois les retours comme une occasion de progresser." },
+    { q: "Êtes-vous disponible pour des horaires soutenus en période de clôture ?", points: ["**disponibilité**", "**sens des priorités**", "**équilibre dans la durée**"], s: "Je suis disponible pour m'adapter aux **périodes de forte activité** comme la clôture, tout en veillant à conserver un **équilibre** qui me permet de rester performant(e) sur la durée." },
+    { q: "Comment vous tenez-vous informé(e) des évolutions de votre métier ?", points: ["**veille professionnelle**", "**formations continues**", "**réseau professionnel**"], s: "Je maintiens une **veille régulière** via les publications officielles, je participe à des **formations continues**, et j'échange avec mon **réseau professionnel** pour rester à jour." },
+    { q: "Qu'est-ce qui vous distingue des autres candidats ?", points: ["**valeur ajoutée spécifique**", "**exemple concret**", "**sans arrogance**"], s: "Au-delà de mes compétences techniques, mon **sens du service** et ma capacité à **vulgariser des sujets complexes** pour des interlocuteurs non-comptables font, je pense, la différence." },
   ],
   management: [
     { q: "Comment organisez-vous le travail au sein de votre équipe ?", points: ["**répartition selon les compétences**", "**planning avec échéances**", "**suivi régulier**"], s: "J'évalue les **compétences de chacun** pour répartir les tâches. J'établis un **planning avec échéances claires**, j'organise des points d'équipe réguliers et je reste disponible pour accompagner les difficultés." },
@@ -225,6 +241,9 @@ const FALLBACK_BANK = {
     { q: "Comment faites-vous monter en compétences votre équipe sur des sujets complexes ?", points: ["**partage de connaissances interne**", "**cas concrets**", "**évaluation des acquis**"], s: "J'organise des **sessions de partage de connaissances** basées sur des cas concrets. J'encourage les formations externes et j'**évalue régulièrement les acquis** pour ajuster le plan de formation." },
     { q: "Comment assurez-vous la continuité du service en cas d'absence d'un collaborateur clé ?", points: ["**documentation des dossiers**", "**polyvalence en binôme**", "**tableau de bord partagé**"], s: "Je veille à ce que chaque dossier soit **documenté et accessible** par au moins deux personnes. Je forme mes collaborateurs en **binôme** et je maintiens un **tableau de bord partagé** sur l'état des dossiers." },
     { q: "Comment gérez-vous un désaccord avec votre supérieur ?", points: ["**arguments factuels**", "**respect de la décision finale**", "**traçabilité**"], s: "J'expose mon point de vue avec des **arguments factuels** et des chiffres à l'appui, de manière respectueuse. Si la décision finale lui revient, je l'applique tout en **documentant mes observations**." },
+    { q: "Comment déléguez-vous une tâche importante à un collaborateur ?", points: ["**clarté des attentes**", "**moyens nécessaires**", "**suivi sans micromanagement**"], s: "Je clarifie précisément les **attentes et le résultat visé**, je m'assure que le collaborateur dispose des **moyens nécessaires**, et j'assure un suivi régulier **sans tomber dans le contrôle excessif**." },
+    { q: "Comment gérez-vous une équipe en période de forte charge de travail ?", points: ["**priorisation collective**", "**communication transparente**", "**soutien de l'équipe**"], s: "Je priorise les tâches **avec l'équipe**, je communique de façon **transparente** sur les enjeux, et je reste disponible pour **soutenir** ceux qui rencontrent des difficultés durant cette période." },
+    { q: "Comment intégrez-vous un nouveau collaborateur dans l'équipe ?", points: ["**accueil structuré**", "**référent désigné**", "**suivi des premières semaines**"], s: "Je prévois un **accueil structuré** avec présentation des outils et process, je désigne un **référent** pour l'accompagner, et je fais un **point régulier** durant ses premières semaines." },
   ],
   technique: [
     { q: "Quels logiciels comptables maîtrisez-vous ?", points: ["**Sage 100 (Compta, Immobilisations, Gestion Commerciale)**", "**Digitax**", "**Excel**"], s: "Je maîtrise **Sage 100** Comptabilité, Immobilisations et Gestion Commerciale, ainsi que **Digitax** pour les obligations fiscales. Je suis également à l'aise avec **Excel** pour les analyses et le reporting." },
@@ -237,6 +256,11 @@ const FALLBACK_BANK = {
     { q: "Quelle est la différence entre résultat comptable et résultat fiscal ?", points: ["**résultat comptable = compte de résultat**", "**réintégrations/déductions fiscales**", "**base de calcul de l'IS**"], s: "Le résultat comptable est issu du **compte de résultat**. Le résultat fiscal s'obtient en **réintégrant les charges non déductibles** et en déduisant les abattements autorisés. C'est sur ce résultat fiscal que l'**IS** est calculé." },
     { q: "Comment détectez-vous une anomalie dans les comptes ?", points: ["**contrôles de cohérence**", "**soldes inhabituels**", "**croisement avec pièces justificatives**"], s: "Je réalise des **contrôles de cohérence** entre les comptes, je vérifie les **soldes inhabituels**, et je croise les données avec les **pièces justificatives** et relevés bancaires." },
     { q: "Comment justifiez-vous un solde de compte lors d'un audit ?", points: ["**balance claire**", "**pièces justificatives**", "**dossier de révision structuré**"], s: "Je prépare une **balance des comptes** claire, je fournis les **pièces justificatives** pour chaque mouvement, et j'anticipe les questions en constituant un **dossier de révision structuré**." },
+    { q: "Qu'est-ce que le contrôle de gestion et quel rôle y jouez-vous ?", points: ["**pilotage de la performance**", "**tableaux de bord**", "**analyse des écarts**"], s: "Le contrôle de gestion vise à **piloter la performance** de l'entreprise. J'y contribue en produisant des **tableaux de bord** et en analysant les **écarts** entre le budget prévisionnel et le réalisé." },
+    { q: "Connaissez-vous les normes IFRS ? Quelle différence avec le SYSCOHADA ?", points: ["**normes comptables internationales**", "**juste valeur**", "**coexistence avec OHADA**"], s: "Les **IFRS** sont des normes comptables internationales, orientées vers la **juste valeur**, utilisées notamment par les groupes cotés. Le SYSCOHADA, plus orienté **coût historique**, reste la norme de référence pour les entités locales au Gabon." },
+    { q: "Comment menez-vous un audit interne des comptes ?", points: ["**plan de contrôle**", "**échantillonnage**", "**rapport de recommandations**"], s: "J'établis un **plan de contrôle** ciblant les zones à risque, je procède par **échantillonnage** sur les opérations sensibles, et je formalise un **rapport de recommandations** correctives." },
+    { q: "Comment procédez-vous à la clôture mensuelle des comptes ?", points: ["**checklist de clôture**", "**rapprochements**", "**revue des charges et produits**"], s: "Je suis une **checklist de clôture** : rapprochements bancaires, **revue des comptes de charges et produits**, régularisation des provisions, avant validation de la balance du mois." },
+    { q: "Quelle est la différence entre une provision pour dépréciation et une provision pour risque ?", points: ["**dépréciation = perte de valeur d'un actif**", "**risque = charge probable future**", "**traitement comptable distinct**"], s: "La provision pour dépréciation constate la **perte de valeur d'un actif** (stock, créance), alors que la provision pour risque anticipe une **charge probable future** (litige, garantie), avec un **traitement comptable distinct**." },
   ],
   OHADA: [
     { q: "Que savez-vous du cadre comptable OHADA appliqué au Gabon ?", points: ["**SYSCOHADA révisé**", "**harmonisation 17 États**", "**états financiers obligatoires**"], s: "Le Gabon applique le **SYSCOHADA révisé** depuis 2018. Ce référentiel **harmonise les pratiques comptables** dans 17 États membres et impose des **états financiers structurés**." },
@@ -249,6 +273,8 @@ const FALLBACK_BANK = {
     { q: "Comment justifiez-vous un solde lors d'un audit OHADA ?", points: ["**pièces justificatives**", "**explication des variations**", "**traçabilité**"], s: "Je fournis les **pièces justificatives**, j'explique les **variations significatives**, et je présente un dossier de révision structuré pour démontrer la **traçabilité** des comptes." },
     { q: "Quelles sanctions en cas de non-conformité aux normes OHADA ?", points: ["**rejet de comptabilité**", "**sanctions administratives**", "**sanctions pénales en cas de fraude**"], s: "Les sanctions vont du **rejet de comptabilité** par l'administration fiscale à des **sanctions pénales** en cas de comptabilité fictive ou de fraude caractérisée." },
     { q: "Comment accompagnez-vous votre équipe dans la maîtrise des normes OHADA ?", points: ["**formations internes**", "**cas pratiques**", "**veille réglementaire**"], s: "J'organise des **formations internes**, je partage des **cas pratiques**, et j'assure une **veille SYSCOHADA** régulière pour maintenir le niveau de l'équipe à jour." },
+    { q: "Quels sont les états financiers obligatoires selon le SYSCOHADA ?", points: ["**bilan**", "**compte de résultat**", "**TAFIRE**", "**notes annexes**"], s: "Le SYSCOHADA impose la production du **bilan**, du **compte de résultat**, du **TAFIRE** (tableau financier des ressources et emplois), et des **notes annexes** explicatives." },
+    { q: "Qu'est-ce que l'Acte Uniforme relatif au droit comptable et à l'information financière ?", points: ["**texte de référence OHADA**", "**harmonisation régionale**", "**opposabilité juridique**"], s: "C'est le **texte de référence** qui organise la comptabilité dans l'espace OHADA, harmonisant les pratiques entre les **17 États membres** avec une **opposabilité juridique** directe." },
   ],
   fiscalite: [
     { q: "Quelles sont les principales obligations fiscales d'une entreprise au Gabon ?", points: ["**déclarations mensuelles et annuelles**", "**DSF**", "**respect des délais**"], s: "Une entreprise doit produire ses **déclarations mensuelles et annuelles**, notamment la **DSF**. Je veille au **respect des délais** et à la cohérence entre comptabilité et fiscalité." },
@@ -261,6 +287,9 @@ const FALLBACK_BANK = {
     { q: "Comment assurez-vous la veille fiscale dans votre pratique ?", points: ["**suivi des lois de finances**", "**mise à jour des barèmes**", "**formation continue**"], s: "Je suis les **lois de finances annuelles** pour mettre à jour mes barèmes de calcul, et je me forme régulièrement pour rester conforme à la **réglementation en vigueur**." },
     { q: "Comment justifiez-vous une charge déduite fiscalement ?", points: ["**pièce justificative probante**", "**lien avec l'activité**", "**conformité au CGI**"], s: "Je m'assure que chaque charge déduite est appuyée par une **pièce justificative probante**, qu'elle est **directement liée à l'activité**, et qu'elle respecte le **Code Général des Impôts**." },
     { q: "Comment gérez-vous une relance ou une mise en demeure de l'administration fiscale ?", points: ["**analyse du motif**", "**réponse argumentée dans les délais**", "**régularisation si fondée**"], s: "J'analyse d'abord le **motif de la relance**, je prépare une **réponse argumentée dans les délais impartis**, et je procède à une **régularisation** si l'observation est fondée." },
+    { q: "Qu'est-ce que la TPS et dans quels cas s'applique-t-elle ?", points: ["**taxe sur certaines prestations**", "**distincte de la TVA**", "**taux spécifique**"], s: "La **TPS** s'applique sur certaines prestations spécifiques définies par le Code Général des Impôts, avec un **taux distinct de la TVA**, et des règles de déclaration propres." },
+    { q: "Comment utilisez-vous la plateforme Digitax au quotidien ?", points: ["**télédéclaration**", "**télépaiement**", "**suivi des échéances**"], s: "J'utilise **Digitax** pour la **télédéclaration** et le **télépaiement** des impôts, ce qui me permet de suivre précisément les échéances et de conserver un historique numérique." },
+    { q: "Quelles nouveautés récentes de la fiscalité gabonaise suivez-vous ?", points: ["**loi de finances**", "**mise à jour des taux**", "**impact sur l'entreprise**"], s: "Je suis attentivement les publications de la **loi de finances rectificative** pour identifier les évolutions de taux ou de procédures, et j'évalue leur **impact concret** sur l'entreprise." },
   ],
   social: [
     { q: "Quelles sont les obligations sociales d'un employeur au Gabon ?", points: ["**immatriculation**", "**déclarations mensuelles**", "**paiement des cotisations**"], s: "L'employeur doit **immatriculer les salariés**, produire les **déclarations sociales mensuelles**, et régler les **cotisations** dans les délais." },
@@ -273,6 +302,8 @@ const FALLBACK_BANK = {
     { q: "Comment gérez-vous l'immatriculation d'un nouveau salarié ?", points: ["**délai réglementaire**", "**pièces à fournir**", "**suivi du dossier**"], s: "Je respecte le **délai réglementaire** d'immatriculation, je rassemble les **pièces nécessaires**, et j'assure le **suivi du dossier** jusqu'à confirmation." },
     { q: "Quelles sont les déclarations nominatives des salaires ?", points: ["**transmission mensuelle**", "**cohérence avec la paie**", "**archivage**"], s: "Ce sont des déclarations transmises **mensuellement**, garantissant la **cohérence entre la paie** effectuée et les cotisations déclarées, avec un **archivage** rigoureux." },
     { q: "Comment gérez-vous un litige avec un organisme social ?", points: ["**analyse du différend**", "**argumentation documentée**", "**recours si nécessaire**"], s: "J'analyse d'abord le **différend** avec les pièces disponibles, je prépare une **argumentation documentée**, et j'envisage un **recours** si la situation le justifie." },
+    { q: "Comment traitez-vous un accident du travail sur le plan administratif ?", points: ["**déclaration CNSS**", "**délais légaux**", "**suivi du dossier**"], s: "Je procède à la **déclaration d'accident du travail** auprès de la CNSS dans les **délais légaux**, et j'assure le **suivi administratif** du dossier jusqu'à sa clôture." },
+    { q: "Comment vérifiez-vous la cohérence entre la paie et les déclarations sociales ?", points: ["**rapprochement paie/déclaration**", "**contrôle des bases**", "**correction des écarts**"], s: "J'effectue un **rapprochement systématique** entre les données de paie et les déclarations transmises, je contrôle les **bases de cotisation**, et je corrige immédiatement tout **écart identifié**." },
   ],
 };
 FALLBACK_BANK.complet = [
@@ -285,6 +316,8 @@ FALLBACK_BANK.complet = [
   FALLBACK_BANK.personnalite[5],
   FALLBACK_BANK.technique[7],
   FALLBACK_BANK.management[9],
+  FALLBACK_BANK.fiscalite[7],
+  FALLBACK_BANK.social[8],
   FALLBACK_BANK.personnalite[9],
 ];
 
@@ -969,10 +1002,11 @@ function Simulator({ module, candidate, onBack }) {
   const [blockedModuleOwned, setBlockedModuleOwned] = useState(null);
   const [basicMode, setBasicMode] = useState(false);
   const fallbackIndexRef = useRef(0);
+  const sessionBankRef = useRef([]); // copie mélangée de la banque, propre à cette session
   const attemptsRef = useRef(0);
   const answeredCountRef = useRef(0); // nombre de réponses déjà données par le candidat
   const basicScoreRef = useRef({ totalStars: 0, count: 0 }); // pour le score en mode secours
-  const sessionLength = Math.min(module.questions, module.id === "complet" ? 10 : 8);
+  const sessionLength = Math.min(module.questions, module.id === "complet" ? 12 : 10);
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState("");
   const [listeningInterim, setListeningInterim] = useState("");
@@ -1183,11 +1217,12 @@ function Simulator({ module, candidate, onBack }) {
       setBasicMode(true);
       fallbackIndexRef.current = 0;
       const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      sessionBankRef.current = shuffleArray(bank);
       setMessages([
         { role: "user", content: fullPrompt },
         {
           role: "assistant",
-          content: `Bonjour, je suis ravi(e) de mener cet entretien avec vous aujourd'hui. Commençons.\n\n${bank[0].q}`,
+          content: `Bienvenue, et merci de prendre le temps de vous préparer avec Héméra. Je serai votre recruteur pour cette session — installez-vous confortablement, prenez le temps qu'il vous faut pour répondre, et faisons de cet échange une vraie préparation à la hauteur de vos ambitions.\n\n${sessionBankRef.current[0].q}`,
         },
       ]);
     }
@@ -1215,7 +1250,10 @@ function Simulator({ module, candidate, onBack }) {
     // vrai recruteur qui attend des éléments précis. Chaque réponse validée
     // reçoit une note en étoiles, et un bilan final s'affiche à la fin.
     if (basicMode) {
-      const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      if (sessionBankRef.current.length === 0) {
+        sessionBankRef.current = shuffleArray(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
+      }
+      const bank = sessionBankRef.current;
       const current = bank[fallbackIndexRef.current];
       const keywords = (current?.points || []).map(p => p.replace(/\*\*/g, "").trim());
       const normAnswer = normalizeText(userMsg.content);
@@ -1312,10 +1350,10 @@ function Simulator({ module, candidate, onBack }) {
       // Échec IA en cours de simulation : bascule automatique et invisible pour le candidat
       setBasicMode(true);
       fallbackIndexRef.current = 0;
-      const bank = FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite;
+      sessionBankRef.current = shuffleArray(FALLBACK_BANK[module.id] || FALLBACK_BANK.personnalite);
       setMessages(p => [...p, {
         role: "assistant",
-        content: bank[0].q,
+        content: sessionBankRef.current[0].q,
       }]);
       setLoading(false);
       return;
