@@ -523,7 +523,7 @@ function Bubble({ msg }) {
 }
 
 // ── Landing Page ───────────────────────────────────────────────────────────
-function Landing({ onStart, candidate, onFindProfile }) {
+function Landing({ onStart, candidate, onFindProfile, onLogout }) {
   const [hovered, setHovered] = useState(null);
   const [showLookup, setShowLookup] = useState(false);
   const [lookupPhone, setLookupPhone] = useState("");
@@ -695,6 +695,14 @@ function Landing({ onStart, candidate, onFindProfile }) {
                   Débloquer l'accès complet
                 </a>
               )}
+              <button
+                type="button"
+                onClick={onLogout}
+                style={{
+                  background: "none", border: "none", color: T.gris,
+                  fontSize: "0.75rem", textDecoration: "underline", cursor: "pointer", padding: 0,
+                }}
+              >Se déconnecter</button>
             </div>
           </div>
         ) : (
@@ -866,7 +874,7 @@ function Landing({ onStart, candidate, onFindProfile }) {
 }
 
 // ── Module Selection ───────────────────────────────────────────────────────
-function ModuleSelect({ onSelect, onBack, candidate }) {
+function ModuleSelect({ onSelect, onBack, candidate, onLogout }) {
   const [hovered, setHovered] = useState(null);
   const [accessInfo, setAccessInfo] = useState(null);
 
@@ -891,13 +899,22 @@ function ModuleSelect({ onSelect, onBack, candidate }) {
         borderBottom: `1px solid #E8D2AC`,
       }}>
         <Logo />
-        <button onClick={onBack} style={{
-          background: "none", border: `1px solid #E8D2AC`,
-          color: T.gris, padding: "8px 16px",
-          fontSize: "0.75rem", cursor: "pointer",
-          letterSpacing: 1, textTransform: "uppercase",
-          borderRadius: 2,
-        }}>← Retour</button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {candidate && (
+            <button onClick={onLogout} style={{
+              background: "none", border: "none",
+              color: T.gris, fontSize: "0.72rem", cursor: "pointer",
+              textDecoration: "underline",
+            }}>Se déconnecter</button>
+          )}
+          <button onClick={onBack} style={{
+            background: "none", border: `1px solid #E8D2AC`,
+            color: T.gris, padding: "8px 16px",
+            fontSize: "0.75rem", cursor: "pointer",
+            letterSpacing: 1, textTransform: "uppercase",
+            borderRadius: 2,
+          }}>← Retour</button>
+        </div>
       </nav>
 
       <div style={{ padding: "48px 32px", maxWidth: 900, margin: "0 auto" }}>
@@ -2056,8 +2073,15 @@ export default function App() {
     setCandidate(info);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("hemera_candidate");
+    setCandidate(null);
+    setSelectedModule(null);
+    setPage("landing");
+  };
+
   if (page === "landing") return (
-    <Landing onStart={handleStart} candidate={candidate} onFindProfile={handleFindProfile} />
+    <Landing onStart={handleStart} candidate={candidate} onFindProfile={handleFindProfile} onLogout={handleLogout} />
   );
   if (page === "register") return (
     <Register onRegistered={handleRegistered} onBack={() => setPage("landing")} />
@@ -2067,6 +2091,7 @@ export default function App() {
       onSelect={m => { setSelectedModule(m); setPage("simulator"); }}
       onBack={() => setPage("landing")}
       candidate={candidate}
+      onLogout={handleLogout}
     />
   );
   if (page === "simulator" && selectedModule) return (
