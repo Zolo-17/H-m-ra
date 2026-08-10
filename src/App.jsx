@@ -144,6 +144,13 @@ function normalizeText(str) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+// Génère un identifiant unique de session — utilisé pour n'autoriser qu'une
+// seule connexion active par profil à la fois (empêche le partage de compte).
+function generateSessionToken() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 // ── Relances variées en mode secours ────────────────────────────────────────
 // Évite de répéter toujours la même phrase, pour renforcer l'illusion d'un
 // véritable échange dynamique plutôt qu'un message figé.
@@ -523,7 +530,7 @@ function Bubble({ msg }) {
 }
 
 // ── Landing Page ───────────────────────────────────────────────────────────
-function Landing({ onStart, candidate, onFindProfile, onLogout }) {
+function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid, sessionMessage, onDismissSessionMessage }) {
   const [hovered, setHovered] = useState(null);
   const [showLookup, setShowLookup] = useState(false);
   const [lookupPhone, setLookupPhone] = useState("");
@@ -532,9 +539,12 @@ function Landing({ onStart, candidate, onFindProfile, onLogout }) {
 
   useEffect(() => {
     if (!candidate?.phone) { setAccessInfo(null); return; }
-    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`)
+    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}&sessionToken=${encodeURIComponent(candidate.sessionToken || "")}`)
       .then(r => r.json())
-      .then(data => setAccessInfo(data.hasActiveAccess ? data : null))
+      .then(data => {
+        if (data.sessionInvalid) { onSessionInvalid(); return; }
+        setAccessInfo(data.hasActiveAccess ? data : null);
+      })
       .catch(() => setAccessInfo(null));
   }, [candidate]);
 
@@ -542,10 +552,15 @@ function Landing({ onStart, candidate, onFindProfile, onLogout }) {
     e.preventDefault();
     setLookupStatus("searching");
     try {
-      const res = await fetch(`/api/profile/lookup?phone=${encodeURIComponent(lookupPhone.trim())}`);
+      const freshToken = generateSessionToken();
+      const res = await fetch("/api/profile/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: lookupPhone.trim(), sessionToken: freshToken }),
+      });
       const data = await res.json();
       if (data.found) {
-        onFindProfile({ fullName: data.fullName, email: data.email, phone: lookupPhone.trim() });
+        onFindProfile({ fullName: data.fullName, email: data.email, phone: lookupPhone.trim(), sessionToken: freshToken });
       } else {
         setLookupStatus("notfound");
       }
@@ -571,6 +586,22 @@ function Landing({ onStart, candidate, onFindProfile, onLogout }) {
         background: `radial-gradient(circle, ${T.orPale}55 0%, ${T.or}22 35%, transparent 70%)`,
         pointerEvents: "none", zIndex: 0,
       }} />
+
+      {sessionMessage && (
+        <div style={{
+          position: "relative", zIndex: 1,
+          background: "#FBE3C4", borderBottom: `1px solid ${T.or}44`,
+          padding: "12px 24px", textAlign: "center",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
+          fontSize: "0.8rem", color: "#8A5A1E",
+        }}>
+          <span>🔒 {sessionMessage}</span>
+          <button onClick={onDismissSessionMessage} style={{
+            background: "none", border: "none", color: "#8A5A1E",
+            cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline",
+          }}>Fermer</button>
+        </div>
+      )}
 
       {/* Nav */}
       <nav style={{
@@ -874,15 +905,18 @@ function Landing({ onStart, candidate, onFindProfile, onLogout }) {
 }
 
 // ── Module Selection ───────────────────────────────────────────────────────
-function ModuleSelect({ onSelect, onBack, candidate, onLogout }) {
+function ModuleSelect({ onSelect, onBack, candidate, onLogout, onSessionInvalid }) {
   const [hovered, setHovered] = useState(null);
   const [accessInfo, setAccessInfo] = useState(null);
 
   useEffect(() => {
     if (!candidate?.phone) { setAccessInfo(null); return; }
-    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`)
+    fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}&sessionToken=${encodeURIComponent(candidate.sessionToken || "")}`)
       .then(r => r.json())
-      .then(data => setAccessInfo(data.hasActiveAccess ? data : null))
+      .then(data => {
+        if (data.sessionInvalid) { onSessionInvalid(); return; }
+        setAccessInfo(data.hasActiveAccess ? data : null);
+      })
       .catch(() => setAccessInfo(null));
   }, [candidate]);
 
@@ -1017,7 +1051,7 @@ function ModuleSelect({ onSelect, onBack, candidate, onLogout }) {
 }
 
 // ── Simulator ──────────────────────────────────────────────────────────────
-function Simulator({ module, candidate, onBack }) {
+function Simulator({ module, candidate, onBack, onSessionInvalid }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1191,8 +1225,13 @@ function Simulator({ module, candidate, onBack }) {
   async function checkAccess() {
     if (!candidate?.phone) return true;
     try {
-      const res = await fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}`);
+      const res = await fetch(`/api/access/check?phone=${encodeURIComponent(candidate.phone)}&sessionToken=${encodeURIComponent(candidate.sessionToken || "")}`);
       const data = await res.json();
+
+      if (data.sessionInvalid) {
+        onSessionInvalid();
+        return false;
+      }
 
       if (data.hasActiveAccess && data.scope === "full") {
         return true; // accès total : tout est débloqué
@@ -2036,10 +2075,19 @@ function Register({ onRegistered, onBack }) {
 export default function App() {
   const [page, setPage] = useState("landing");
   const [selectedModule, setSelectedModule] = useState(null);
+  const [sessionMessage, setSessionMessage] = useState("");
   const [candidate, setCandidate] = useState(() => {
     try {
       const saved = localStorage.getItem("hemera_candidate");
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const info = JSON.parse(saved);
+      // Profils créés avant cette fonctionnalité : on leur attribue un
+      // jeton en douceur, sans les déconnecter.
+      if (!info.sessionToken) {
+        info.sessionToken = generateSessionToken();
+        localStorage.setItem("hemera_candidate", JSON.stringify(info));
+      }
+      return info;
     } catch {
       return null;
     }
@@ -2056,19 +2104,26 @@ export default function App() {
   };
 
   const handleRegistered = (info) => {
-    localStorage.setItem("hemera_candidate", JSON.stringify(info));
-    setCandidate(info);
+    // S'inscrire est une connexion : ce nouvel appareil devient la session
+    // active, ce qui déconnectera automatiquement tout autre appareil
+    // utilisant ce même profil.
+    const withSession = { ...info, sessionToken: generateSessionToken() };
+    localStorage.setItem("hemera_candidate", JSON.stringify(withSession));
+    setCandidate(withSession);
     setPage(selectedModule ? "simulator" : "modules");
-    // Mémorise le profil côté serveur (pas seulement dans ce navigateur),
-    // pour que toi comme la plateforme sachiez qui s'est inscrit et quand.
     fetch("/api/profile/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: info.phone, email: info.email, fullName: info.fullName }),
+      body: JSON.stringify({
+        phone: info.phone, email: info.email, fullName: info.fullName,
+        sessionToken: withSession.sessionToken,
+      }),
     }).catch(() => {});
   };
 
   const handleFindProfile = (info) => {
+    // info contient déjà un sessionToken frais, généré et réclamé côté
+    // serveur au moment de la recherche de profil (voir Landing).
     localStorage.setItem("hemera_candidate", JSON.stringify(info));
     setCandidate(info);
   };
@@ -2080,8 +2135,21 @@ export default function App() {
     setPage("landing");
   };
 
+  const handleSessionInvalid = () => {
+    setSessionMessage("Ton profil a été connecté sur un autre appareil, ce qui a fermé cette session automatiquement — un seul appareil peut être actif à la fois.");
+    handleLogout();
+  };
+
   if (page === "landing") return (
-    <Landing onStart={handleStart} candidate={candidate} onFindProfile={handleFindProfile} onLogout={handleLogout} />
+    <Landing
+      onStart={handleStart}
+      candidate={candidate}
+      onFindProfile={handleFindProfile}
+      onLogout={handleLogout}
+      onSessionInvalid={handleSessionInvalid}
+      sessionMessage={sessionMessage}
+      onDismissSessionMessage={() => setSessionMessage("")}
+    />
   );
   if (page === "register") return (
     <Register onRegistered={handleRegistered} onBack={() => setPage("landing")} />
@@ -2092,6 +2160,7 @@ export default function App() {
       onBack={() => setPage("landing")}
       candidate={candidate}
       onLogout={handleLogout}
+      onSessionInvalid={handleSessionInvalid}
     />
   );
   if (page === "simulator" && selectedModule) return (
@@ -2099,6 +2168,7 @@ export default function App() {
       module={selectedModule}
       candidate={candidate}
       onBack={() => setPage("modules")}
+      onSessionInvalid={handleSessionInvalid}
     />
   );
   return null;
