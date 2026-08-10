@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { phone, email, fullName } = req.body;
+  const { phone, email, fullName, sessionToken } = req.body;
   if (!phone) {
     return res.status(400).json({ error: "Numéro de téléphone manquant" });
   }
@@ -29,15 +29,25 @@ export default async function handler(req, res) {
     .eq("phone", phone)
     .maybeSingle();
 
+  // S'inscrire est un acte de connexion : ce nouvel appareil devient la
+  // seule session active pour ce profil, invalidant toute autre session.
   if (existing) {
     await supabase
       .from("users")
-      .update({ email: email || undefined, full_name: fullName || undefined, last_seen_at: now })
+      .update({
+        email: email || undefined,
+        full_name: fullName || undefined,
+        last_seen_at: now,
+        active_session_token: sessionToken || undefined,
+      })
       .eq("id", existing.id);
   } else {
     await supabase
       .from("users")
-      .insert({ phone, email: email || null, full_name: fullName || null, last_seen_at: now });
+      .insert({
+        phone, email: email || null, full_name: fullName || null,
+        last_seen_at: now, active_session_token: sessionToken || null,
+      });
   }
 
   return res.status(200).json({ success: true });
