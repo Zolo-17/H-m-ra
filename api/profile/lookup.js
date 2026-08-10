@@ -3,15 +3,19 @@
 // Permet à un candidat déjà inscrit de retrouver son profil (accès actif,
 // essai gratuit restant) depuis un nouvel appareil ou après avoir vidé
 // son navigateur, simplement avec son numéro de téléphone.
+//
+// C'est un acte de connexion : ce nouvel appareil devient la seule session
+// active pour ce profil, ce qui invalide automatiquement toute session
+// ouverte ailleurs (empêche le partage d'un même compte payant).
 
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") {
+  if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { phone } = req.query;
+  const { phone, sessionToken } = req.body;
   if (!phone) {
     return res.status(400).json({ error: "Numéro de téléphone manquant" });
   }
@@ -31,10 +35,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ found: false });
   }
 
-  // Le candidat vient de retrouver son profil : on note la connexion
   await supabase
     .from("users")
-    .update({ last_seen_at: new Date().toISOString() })
+    .update({
+      last_seen_at: new Date().toISOString(),
+      active_session_token: sessionToken || undefined,
+    })
     .eq("id", user.id);
 
   const { data: grants } = await supabase
