@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { jsPDF } from "jspdf";
+import SunRise from "./SunRise.jsx";
 
 // ── Design tokens ── Héméra, déesse de l'aube : de la nuit naît la lumière ──
 const T = {
@@ -578,7 +579,7 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
       overflowX: "hidden",
       position: "relative",
     }}>
-      {/* Halo d'aube — la lumière d'Héméra perçant derrière le titre */}
+      {/* Halo d'aube — base de secours toujours visible (dégradé CSS statique) */}
       <div aria-hidden="true" style={{
         position: "absolute", top: "-10%", left: "50%",
         transform: "translateX(-50%)",
@@ -586,6 +587,10 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
         background: `radial-gradient(circle, ${T.orPale}55 0%, ${T.or}22 35%, transparent 70%)`,
         pointerEvents: "none", zIndex: 0,
       }} />
+
+      {/* "Le Lever" — expérience 3D signature, se superpose au halo si le
+          navigateur/appareil le permet ; se dégrade silencieusement sinon */}
+      <SunRise />
 
       {sessionMessage && (
         <div style={{
