@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { phone, email, fullName, sessionToken } = req.body;
+  const { phone, email, fullName, gender, sessionToken } = req.body;
   if (!phone) {
     return res.status(400).json({ error: "Numéro de téléphone manquant" });
   }
@@ -37,6 +37,7 @@ export default async function handler(req, res) {
       .update({
         email: email || undefined,
         full_name: fullName || undefined,
+        gender: gender || undefined,
         last_seen_at: now,
         active_session_token: sessionToken || undefined,
       })
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
     await supabase
       .from("users")
       .insert({
-        phone, email: email || null, full_name: fullName || null,
+        phone, email: email || null, full_name: fullName || null, gender: gender || null,
         last_seen_at: now, active_session_token: sessionToken || null,
       });
   }
