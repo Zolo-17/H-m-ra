@@ -62,6 +62,7 @@ export default async function handler(req, res) {
     found: true,
     email: user.email || null,
     fullName: user.full_name || null,
+    gender: user.gender || null,
     hasActiveAccess: (grants || []).length > 0,
     expiresAt: grants?.[0]?.expires_at || null,
     questionsUsed: trial?.questions_used || 0,
