@@ -637,9 +637,11 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
         }} />
 
         <div style={{
-          fontSize: "0.7rem", color: T.or,
+          fontSize: "0.7rem", color: T.blanc,
           letterSpacing: 4, textTransform: "uppercase",
-          marginBottom: 20,
+          marginBottom: 20, fontWeight: 700,
+          textShadow: `0 1px 3px ${T.noir}, 0 0 12px ${T.noir}CC`,
+          position: "relative", zIndex: 2,
         }}>
           Simulateur d'entretien professionnel
         </div>
