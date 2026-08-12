@@ -3,16 +3,19 @@ import React, { useEffect, useRef, useState } from "react";
 /**
  * SunRise — l'expérience 3D signature d'Héméra ("Le Lever")
  * -----------------------------------------------------------------------
- * Un soleil stylisé se lève doucement derrière le titre du hero, puis
- * respire lentement en fond, entouré de particules de lumière en dérive.
+ * Un soleil stylisé se lève au chargement, puis traverse tout le flux
+ * narratif de la page au fil du défilement :
+ *   dawn        → lever initial (déjà en place)
+ *   clouded     → un nuage passe devant, la lumière baisse (section Problème)
+ *   breakthrough→ le nuage se dissipe, le soleil retrouve son éclat (Solution)
+ *   zenith      → pleine lumière, stable (Preuve)
+ *   settled     → le soleil se réduit et s'installe discrètement en fond (CTA)
  *
  * Dégradation automatique et responsable :
- *  - Si WebGL n'est pas disponible, ou si l'utilisateur préfère les
- *    animations réduites (accessibilité), ou sur un appareil visiblement
- *    modeste (peu de cœurs CPU), on ne charge JAMAIS three.js — le halo
- *    statique déjà en place (dégradé CSS) reste seul visible.
- *  - three.js est chargé dynamiquement (import() à la demande), jamais
- *    inclus dans le chargement initial du reste du site.
+ *  - Si WebGL n'est pas disponible, si l'utilisateur préfère les animations
+ *    réduites, ou sur un appareil visiblement modeste, on ne charge JAMAIS
+ *    three.js — le halo CSS statique déjà en place reste seul visible.
+ *  - three.js est chargé dynamiquement (import() à la demande).
  */
 
 function supportsRichExperience() {
@@ -28,15 +31,28 @@ function supportsRichExperience() {
   }
 }
 
-export default function SunRise({ size = 900 }) {
+// Réglages cibles par phase narrative — le rendu interpole en douceur
+// (lerp) vers ces valeurs à chaque changement de phase, jamais de saut brut.
+const PHASE_TARGETS = {
+  dawn:         { glow: 0.25, cloud: 0,    scale: 1.0,  yOffset: 0 },
+  clouded:      { glow: 0.10, cloud: 0.6,  scale: 1.0,  yOffset: 0 },
+  breakthrough: { glow: 0.42, cloud: 0,    scale: 1.04, yOffset: 0 },
+  zenith:       { glow: 0.48, cloud: 0,    scale: 1.08, yOffset: 0.3 },
+  settled:      { glow: 0.2,  cloud: 0,    scale: 0.65, yOffset: -0.8 },
+};
+
+export default function SunRise({ size = 900, phase = "dawn" }) {
   const containerRef = useRef(null);
   const [active, setActive] = useState(false);
+  const phaseRef = useRef(phase);
+
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   useEffect(() => {
     if (!supportsRichExperience()) return; // dégradation silencieuse vers le halo CSS statique
     setActive(true);
 
-    let renderer, scene, camera, sun, glow, particles, frameId;
+    let renderer, scene, camera, sun, glow, cloud, particles, frameId;
     let disposed = false;
 
     import("three").then((THREE) => {
@@ -69,6 +85,16 @@ export default function SunRise({ size = 900 }) {
       glow = new THREE.Mesh(glowGeo, glowMat);
       sun.add(glow);
 
+      // Le nuage — une sphère aplatie, translucide, qui glisse devant le soleil
+      const cloudGeo = new THREE.SphereGeometry(2.6, 24, 24);
+      cloudGeo.scale(1.4, 0.55, 1);
+      const cloudMat = new THREE.MeshBasicMaterial({
+        color: 0x8a7a9a, transparent: true, opacity: 0,
+      });
+      cloud = new THREE.Mesh(cloudGeo, cloudMat);
+      cloud.position.set(-6, 0.4, 1.5); // hors champ à gauche par défaut
+      scene.add(cloud);
+
       // Particules de lumière en dérive
       const particleCount = 60;
       const positions = new Float32Array(particleCount * 3);
@@ -88,19 +114,41 @@ export default function SunRise({ size = 900 }) {
       const clock = new THREE.Clock();
       const RISE_DURATION = 2.4; // secondes
       const REST_Y = 0.4;
+      const LERP_SPEED = 1.8; // vitesse de transition entre phases
+
+      // État courant interpolé (démarre sur les valeurs de "dawn")
+      const current = { ...PHASE_TARGETS.dawn };
+
+      function lerp(a, b, t) { return a + (b - a) * t; }
 
       function animate() {
         frameId = requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
+        const dt = Math.min(clock.getDelta(), 0.05);
 
+        // Lever initial (une seule fois, indépendant des phases narratives)
         if (t < RISE_DURATION) {
           const p = t / RISE_DURATION;
-          const eased = 1 - Math.pow(1 - p, 3); // ease-out cubique
+          const eased = 1 - Math.pow(1 - p, 3);
           sun.position.y = -4.5 + eased * (REST_Y + 4.5);
         } else {
+          const target = PHASE_TARGETS[phaseRef.current] || PHASE_TARGETS.dawn;
+          const k = 1 - Math.exp(-LERP_SPEED * dt); // lissage exponentiel, doux et stable
+
+          current.glow = lerp(current.glow, target.glow, k);
+          current.cloud = lerp(current.cloud, target.cloud, k);
+          current.scale = lerp(current.scale, target.scale, k);
+          current.yOffset = lerp(current.yOffset, target.yOffset, k);
+
           const breathe = Math.sin((t - RISE_DURATION) * 0.6) * 0.05;
-          sun.position.y = REST_Y + breathe;
+          sun.position.y = REST_Y + current.yOffset + breathe;
           sun.rotation.y += 0.0015;
+          sun.scale.setScalar(current.scale);
+          glowMat.opacity = current.glow;
+
+          cloudMat.opacity = current.cloud * 0.85;
+          const cloudTargetX = current.cloud > 0.05 ? 0 : -6;
+          cloud.position.x = lerp(cloud.position.x, cloudTargetX, k);
         }
 
         particles.rotation.y += 0.0006;
@@ -130,6 +178,7 @@ export default function SunRise({ size = 900 }) {
         cancelAnimationFrame(frameId);
         sunGeo.dispose(); sunMat.dispose();
         glowGeo.dispose(); glowMat.dispose();
+        cloudGeo.dispose(); cloudMat.dispose();
         particleGeo.dispose(); particleMat.dispose();
         renderer.dispose();
         if (renderer.domElement.parentNode) {
@@ -152,7 +201,7 @@ export default function SunRise({ size = 900 }) {
       ref={containerRef}
       aria-hidden="true"
       style={{
-        position: "absolute", top: "-10%", left: "50%",
+        position: "fixed", top: "-5%", left: "50%",
         transform: "translateX(-50%)",
         width: size, height: size, maxWidth: "140vw",
         pointerEvents: "none", zIndex: 0,
