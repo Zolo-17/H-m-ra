@@ -537,6 +537,40 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupStatus, setLookupStatus] = useState("idle"); // idle | searching | notfound | error
   const [accessInfo, setAccessInfo] = useState(null); // { scope, moduleSlug } | null
+  const [phase, setPhase] = useState("dawn");
+
+  const sectionRefs = {
+    accroche: useRef(null),
+    probleme: useRef(null),
+    solution: useRef(null),
+    preuve: useRef(null),
+    cta: useRef(null),
+  };
+
+  // Chaque section du flux narratif pilote la phase du soleil 3D en fond —
+  // le défilement DEVIENT la progression du jour.
+  useEffect(() => {
+    const phaseBySection = {
+      accroche: "dawn",
+      probleme: "clouded",
+      solution: "breakthrough",
+      preuve: "zenith",
+      cta: "settled",
+    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const key = entry.target.dataset.section;
+            if (phaseBySection[key]) setPhase(phaseBySection[key]);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    Object.values(sectionRefs).forEach(ref => ref.current && observer.observe(ref.current));
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!candidate?.phone) { setAccessInfo(null); return; }
@@ -588,9 +622,10 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
         pointerEvents: "none", zIndex: 0,
       }} />
 
-      {/* "Le Lever" — expérience 3D signature, se superpose au halo si le
-          navigateur/appareil le permet ; se dégrade silencieusement sinon */}
-      <SunRise />
+      {/* "Le Lever" — expérience 3D signature, pilotée par le défilement.
+          Se superpose au halo si le navigateur/appareil le permet ; se
+          dégrade silencieusement sinon */}
+      <SunRise phase={phase} />
 
       {sessionMessage && (
         <div style={{
@@ -623,13 +658,17 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
         }}>Gabon · Comptabilité · 2026</div>
       </nav>
 
-      {/* Hero */}
-      <div style={{
-        padding: "80px 32px 60px",
-        maxWidth: 900, margin: "0 auto",
-        textAlign: "center",
-        position: "relative", zIndex: 1,
-      }}>
+      {/* Hero — Section 1 : ACCROCHE */}
+      <div
+        ref={sectionRefs.accroche}
+        data-section="accroche"
+        style={{
+          padding: "80px 32px 60px",
+          maxWidth: 900, margin: "0 auto",
+          textAlign: "center",
+          position: "relative", zIndex: 1,
+        }}
+      >
         {/* Ornement */}
         <div style={{
           width: 1, height: 60, background: `linear-gradient(to bottom, transparent, ${T.or})`,
@@ -836,11 +875,77 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
         }} />
       </div>
 
-      {/* Modules preview */}
-      <div style={{
-        padding: "0 32px 80px",
-        maxWidth: 900, margin: "0 auto",
-      }}>
+      {/* Section 2 : PROBLÈME — le ciel qui s'assombrit */}
+      <div
+        ref={sectionRefs.probleme}
+        data-section="probleme"
+        style={{
+          padding: "60px 32px", maxWidth: 720, margin: "0 auto",
+          textAlign: "center", position: "relative", zIndex: 1,
+        }}
+      >
+        <div style={{
+          fontSize: "0.65rem", color: T.gris,
+          letterSpacing: 4, textTransform: "uppercase", marginBottom: 20,
+        }}>Ce que vous vivez sans doute déjà</div>
+        <h2 style={{
+          fontFamily: "'Fraunces', Georgia, serif",
+          fontSize: "clamp(1.6rem, 3.5vw, 2.2rem)", fontWeight: 400,
+          color: T.blanc, margin: "0 0 40px", lineHeight: 1.4,
+        }}>
+          Un recruteur qui demande le taux de CNSS 2026 sans prévenir.
+          Une question sur la DSF OHADA face à laquelle on bafouille.
+          Personne pour s'entraîner avec vous, à Libreville ou ailleurs.
+        </h2>
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 20, textAlign: "left",
+        }}>
+          {[
+            { t: "Le silence", d: "Face à une question technique précise, l'esprit se vide — faute d'avoir pu s'entraîner en conditions réelles." },
+            { t: "Le stress", d: "Sans repère sur ce qui vous attend, la pression prend toute la place et fait perdre ses moyens." },
+            { t: "L'absence de retour", d: "Personne pour vous dire objectivement ce qui a fonctionné, et ce qu'il faut vraiment travailler." },
+          ].map(item => (
+            <div key={item.t} style={{
+              background: T.charbon, border: `1px solid ${T.bordure}`,
+              borderRadius: 4, padding: "18px 20px",
+            }}>
+              <div style={{ fontFamily: "'Fraunces', Georgia, serif", color: T.or, fontSize: "1rem", marginBottom: 8 }}>
+                {item.t}
+              </div>
+              <div style={{ color: T.gris, fontSize: "0.82rem", lineHeight: 1.6 }}>{item.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Modules preview — Section 3 : SOLUTION — le soleil perce */}
+      <div
+        ref={sectionRefs.solution}
+        data-section="solution"
+        style={{
+          padding: "60px 32px 80px",
+          maxWidth: 900, margin: "0 auto",
+          position: "relative", zIndex: 1,
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{
+            fontSize: "0.65rem", color: T.gris,
+            letterSpacing: 4, textTransform: "uppercase", marginBottom: 12,
+          }}>La solution</div>
+          <h2 style={{
+            fontFamily: "'Fraunces', Georgia, serif",
+            fontSize: "clamp(1.5rem, 3vw, 2rem)", fontWeight: 400,
+            color: T.blanc, margin: "0 0 12px",
+          }}>Voici ce qui change tout.</h2>
+          <p style={{ color: T.gris, fontSize: "0.85rem", maxWidth: 520, margin: "0 auto 40px", lineHeight: 1.7 }}>
+            Un recruteur virtuel qui vous appelle par votre nom, vous pose de vraies questions
+            techniques gabonaises, et reste disponible même sans connexion — 7 modules,
+            dictée vocale, évaluation en étoiles à chaque réponse.
+          </p>
+        </div>
+
         <div style={{
           fontSize: "0.65rem", color: T.gris,
           letterSpacing: 4, textTransform: "uppercase",
@@ -891,6 +996,121 @@ function Landing({ onStart, candidate, onFindProfile, onLogout, onSessionInvalid
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Section 4 : PREUVE — plein jour, la rigueur comme preuve */}
+      <div
+        ref={sectionRefs.preuve}
+        data-section="preuve"
+        style={{
+          padding: "60px 32px 80px", maxWidth: 820, margin: "0 auto",
+          position: "relative", zIndex: 1,
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{
+            fontSize: "0.65rem", color: T.gris,
+            letterSpacing: 4, textTransform: "uppercase", marginBottom: 12,
+          }}>Le niveau d'exigence</div>
+          <h2 style={{
+            fontFamily: "'Fraunces', Georgia, serif",
+            fontSize: "clamp(1.5rem, 3vw, 2rem)", fontWeight: 400,
+            color: T.blanc, margin: 0,
+          }}>Pas un simulateur qui flatte. Un recruteur qui exige.</h2>
+        </div>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: 24, alignItems: "start",
+        }}>
+          {/* Exemple de question technique réelle */}
+          <div style={{
+            background: T.charbon, border: `1px solid ${T.bordure}`,
+            borderRadius: 6, padding: "22px 24px",
+          }}>
+            <div style={{ fontSize: "0.65rem", color: T.or, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
+              Une vraie question posée
+            </div>
+            <div style={{ color: T.blanc, fontSize: "0.92rem", lineHeight: 1.6, fontStyle: "italic" }}>
+              "Quels sont les taux de cotisation CNSS actuels, et comment les appliquez-vous
+              à un salaire plafonné ?"
+            </div>
+          </div>
+
+          {/* Exemple d'évaluation telle qu'affichée dans l'app */}
+          <div style={{
+            background: T.charbon, border: `1px solid ${T.bordure}`,
+            borderRadius: 6, padding: "22px 24px",
+          }}>
+            <div style={{ fontSize: "0.65rem", color: T.or, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
+              L'évaluation reçue
+            </div>
+            <div style={{ color: T.or, fontSize: "1.1rem", marginBottom: 10 }}>⭐⭐⭐⭐☆</div>
+            <div style={{ color: T.blanc, fontSize: "0.82rem", marginBottom: 6 }}>
+              ✅ Structure claire, taux correctement cités
+            </div>
+            <div style={{ color: T.gris, fontSize: "0.82rem" }}>
+              ⚠️ Manque la distinction part patronale / part salariale
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 5 : APPEL À L'ACTION — le choix du candidat */}
+      <div
+        ref={sectionRefs.cta}
+        data-section="cta"
+        style={{
+          padding: "60px 32px 80px", maxWidth: 820, margin: "0 auto",
+          textAlign: "center", position: "relative", zIndex: 1,
+        }}
+      >
+        <div style={{
+          fontSize: "0.65rem", color: T.gris,
+          letterSpacing: 4, textTransform: "uppercase", marginBottom: 12,
+        }}>Prêt à commencer</div>
+        <h2 style={{
+          fontFamily: "'Fraunces', Georgia, serif",
+          fontSize: "clamp(1.6rem, 3.5vw, 2.2rem)", fontWeight: 400,
+          color: T.blanc, margin: "0 0 12px",
+        }}>Essayez d'abord. Payez seulement si ça vous convainc.</h2>
+        <p style={{ color: T.gris, fontSize: "0.85rem", maxWidth: 480, margin: "0 auto 40px", lineHeight: 1.7 }}>
+          5 questions gratuites, tous modules confondus, avant de débourser un centime.
+        </p>
+
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 16, marginBottom: 40,
+        }}>
+          {[
+            { l: "Accès total", d: "7 jours", p: "2 000 FCFA" },
+            { l: "1 module", d: "1 mois", p: "3 500 FCFA" },
+            { l: "Accès total", d: "1 mois", p: "10 000 FCFA" },
+          ].map((o, i) => (
+            <div key={i} style={{
+              background: T.charbon, border: `1px solid ${T.bordure}`,
+              borderRadius: 6, padding: "18px 16px",
+            }}>
+              <div style={{ color: T.gris, fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                {o.l} · {o.d}
+              </div>
+              <div style={{ fontFamily: "'Fraunces', Georgia, serif", color: T.or, fontSize: "1.3rem", fontWeight: 700 }}>
+                {o.p}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onStart("modules")}
+          style={{
+            background: `linear-gradient(135deg, ${T.or}, ${T.orPale})`,
+            color: T.blanc, border: "none", padding: "16px 48px",
+            fontSize: "0.9rem", fontWeight: 700, letterSpacing: 2,
+            textTransform: "uppercase", cursor: "pointer", borderRadius: 2,
+            boxShadow: `0 4px 30px ${T.or}40`,
+          }}
+        >Commencer gratuitement →</button>
       </div>
 
       {/* Footer */}
