@@ -56,11 +56,21 @@ export default function AdminApprovals() {
   }
 
   async function act(requestId, action) {
-    await fetch("/api/admin/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
-      body: JSON.stringify({ requestId, action }),
-    });
+    try {
+      const res = await fetch("/api/admin/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+        body: JSON.stringify({ requestId, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Échec de l'action "${action}" :\n${data.error || `Erreur ${res.status}`}`);
+        return;
+      }
+    } catch (err) {
+      alert(`Erreur de connexion pendant l'action "${action}". Réessaie.`);
+      return;
+    }
     loadRequests(secret);
     if (action === "approve") loadUsers(); // le nouvel accès doit apparaître côté utilisateurs
   }
