@@ -2301,7 +2301,7 @@ function Register({ onRegistered, onBack }) {
             type="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            placeholder="Ex : 077037005"
+            placeholder="Ex : 06XXXXXXX"
             style={{
               width: "100%", padding: "10px 12px", marginBottom: 8,
               background: T.graphite, border: "1px solid #E8D2AC",
