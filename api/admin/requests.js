@@ -76,6 +76,12 @@ export default async function handler(req, res) {
     }
 
     if (action === "approve") {
+      // Idempotence : si déjà approuvée (ex. double-clic), ne pas retenter
+      // l'insertion (qui échouerait sur la contrainte d'unicité du paiement).
+      if (request.status === "approved") {
+        return res.status(200).json({ success: true, alreadyApproved: true });
+      }
+
       // 1. Trouver ou créer l'utilisateur
       let { data: user } = await supabase
         .from("users")
@@ -143,13 +149,15 @@ export default async function handler(req, res) {
         .update({ status: "approved", approved_at: new Date().toISOString() })
         .eq("id", requestId);
 
-      // 6. Confirmer au candidat que son accès est actif
+      // 6. Confirmer au candidat que son accès est actif, avec un lien direct
       const candidateEmail = request.email || user.email;
       if (candidateEmail) {
         const expiresDate = new Date(expiresAt).toLocaleDateString("fr-FR");
         const accessLine = offer.scope === "module" && request.module_slug
           ? `ton accès au module "${request.module_slug}" est maintenant actif jusqu'au ${expiresDate}.`
           : `ton accès complet est maintenant actif jusqu'au ${expiresDate}.`;
+        const siteUrl = process.env.SITE_URL || "https://hemera-entretien.vercel.app";
+        const accessLink = `${siteUrl}/?connect=${encodeURIComponent(request.phone)}`;
         await sendEmail({
           to: candidateEmail,
           subject: "Héméra — Ton accès est activé ✅",
@@ -157,7 +165,8 @@ export default async function handler(req, res) {
 
 Bonne nouvelle : ton paiement a été vérifié et ${accessLine}
 
-Tu peux te reconnecter dès maintenant sur Héméra et commencer tes simulations d'entretien.
+Clique sur ce lien pour accéder directement à ton espace, sans rien ressaisir :
+${accessLink}
 
 Bonne préparation,
 L'équipe Héméra`,
