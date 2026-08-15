@@ -5,10 +5,17 @@
 // connexion — pas seulement dans le navigateur local du candidat.
 
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "../../lib/rateLimit.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
+  }
+
+  const ip = getClientIp(req);
+  const { allowed } = await checkRateLimit(`register:${ip}`, 8, 10);
+  if (!allowed) {
+    return res.status(429).json({ error: "Trop de tentatives. Merci de patienter quelques minutes." });
   }
 
   const { phone, email, fullName, gender, sessionToken } = req.body;
