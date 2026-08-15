@@ -8,6 +8,7 @@
 //  2. Au candidat — pour le rassurer que sa demande est bien reçue et en cours de vérification.
 
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "../../lib/rateLimit.js";
 
 async function sendEmail({ to, subject, text }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -34,6 +35,12 @@ async function sendEmail({ to, subject, text }) {
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
+  }
+
+  const ip = getClientIp(req);
+  const { allowed } = await checkRateLimit(`manual-request:${ip}`, 6, 30);
+  if (!allowed) {
+    return res.status(429).json({ error: "Trop de tentatives. Merci de patienter avant de réessayer." });
   }
 
   const { fullName, email, phone, method, offerCode, moduleSlug, transactionReference } = req.body;
