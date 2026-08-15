@@ -9,10 +9,17 @@
 // ouverte ailleurs (empêche le partage d'un même compte payant).
 
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "../../lib/rateLimit.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
+  }
+
+  const ip = getClientIp(req);
+  const { allowed } = await checkRateLimit(`lookup:${ip}`, 10, 10);
+  if (!allowed) {
+    return res.status(429).json({ error: "Trop de tentatives. Merci de patienter quelques minutes." });
   }
 
   const { phone, sessionToken } = req.body;
